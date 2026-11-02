@@ -1,0 +1,325 @@
+<title>MERCOP valor negociado</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  /* Layout: tarjeta Atra-e (borde navy, cifra grande, pestañas subrayadas) con gráfico de línea de área. */
+  :root {
+    --bmc-navy: #0A1F5C;
+    --bmc-blue: #1E6FC8;
+    --bmc-blue-soft: rgba(30, 111, 200, 0.10);
+    --bg: #F2F2F2;
+    --card: #FFFFFF;
+    --line: #E1E4EA;
+    --muted: #6B7280;
+    --up: #1E7A46;
+    --down: #B42318;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--bmc-navy);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    padding-block: 20px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    justify-content: center;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--bmc-navy);
+    border-radius: 10px;
+    padding: 24px;
+    width: 100%;
+    max-width: 800px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08);
+    min-width: 0;
+  }
+  .header-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+  .chart-title { font-size: 20px; font-weight: 700; margin: 6px 0 2px; line-height: 1.3; text-wrap: balance; }
+  .chart-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .main-value { font-size: 36px; font-weight: 700; margin: 8px 0 4px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; font-variant-numeric: tabular-nums; }
+  .unit { font-size: 18px; color: var(--muted); font-weight: 500; }
+  .badge { font-size: 14px; padding: 4px 10px; border-radius: 6px; font-weight: 600; align-self: center; }
+  .badge.neutral { background: var(--bmc-blue-soft); color: var(--bmc-navy); }
+  .delta { font-size: 15px; font-weight: 600; align-self: center; }
+  .delta.up { color: var(--up); }
+  .meta-info { font-size: 12px; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+  .controls { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+  .timeframes { display: flex; gap: 4px; overflow-x: auto; }
+  .tf-btn { background: transparent; border: none; border-bottom: 3px solid transparent; color: var(--muted); padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; white-space: nowrap; }
+  .tf-btn:hover { color: var(--bmc-blue); }
+  .tf-btn:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: 2px; }
+  .tf-btn.active { color: var(--bmc-navy); border-bottom-color: var(--bmc-blue); }
+  .serie { font-size: 12px; color: var(--muted); padding-bottom: 10px; }
+  .chart-container { position: relative; height: 320px; width: 100%; }
+  .footnote { font-size: 12px; color: var(--muted); margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+  .dl-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--bmc-blue); padding: 6px 12px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .dl-btn:hover { border-color: var(--bmc-blue); background: var(--bmc-blue-soft); }
+  .dl-btn:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: 2px; }
+  .dl-btn svg { width: 14px; height: 14px; }
+  .dl-msg { width: 100%; text-align: right; color: var(--down); }
+</style>
+
+<div class="card">
+  <div class="header-title">MERCOP • Bolsa Mercantil de Colombia</div>
+  <h1 class="chart-title">Valor negociado en MERCOP</h1>
+  <div class="chart-subtitle">Mercado de Comercialización entre Privados · millones de pesos colombianos (COP)</div>
+
+  <div class="main-value">
+    <span id="valor">—</span><span class="unit">COP</span>
+    <span id="badge" class="badge neutral"></span>
+    <span id="delta" class="delta up"></span>
+  </div>
+
+  <div class="meta-info" id="meta"></div>
+
+  <div class="controls">
+    <div class="timeframes" id="tfs">
+      <button class="tf-btn" id="tf-1a" data-r="1A" title="Año 2025 por mes">1A</button>
+      <button class="tf-btn" id="tf-2a" data-r="2A" title="Últimos 2 años: 2024 – 2025 (anual)">2A</button>
+      <button class="tf-btn" id="tf-3a" data-r="3A" title="Últimos 3 años: 2023 – 2025 (anual)">3A</button>
+      <button class="tf-btn" id="tf-5a" data-r="5A" title="Últimos 5 años: 2021 – 2025 (anual)">5A</button>
+      <button class="tf-btn active" id="tf-max" data-r="max" title="Todos los años con datos: 2020 – 2025 (anual)">Máx.</button>
+    </div>
+    <div class="serie" id="serie"></div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="mercopChart" aria-label="Gráfico de línea del valor negociado en MERCOP"></canvas>
+  </div>
+
+  <div class="footnote">
+    <span>Fuente: Bolsa Mercantil de Colombia</span>
+    <span>·</span>
+    <span id="ultimo-dato"></span>
+    <button class="dl-btn" id="descargar" type="button" title="Descarga los datos de la gráfica con sus fuentes y notas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
+      </svg>
+      Descargar datos (.xlsx)
+    </button>
+    <span class="dl-msg" id="dl-msg" hidden></span>
+  </div>
+</div>
+
+<!-- Datos y referencias de la gráfica. La gráfica y la descarga .xlsx leen de aquí. Para actualizar, editar solo este bloque. -->
+<script type="application/json" id="mercop-datos">
+{
+  "titulo": "MERCOP – Valor negociado",
+  "unidad": "Millones de pesos colombianos (COP)",
+  "fecha_elaboracion": "2026-11-01",
+  "ultimo_dato": "dic. 2025",
+  "fuentes": [
+    { "id": "F1", "documento": "BMC – Informe de Gestión y Sostenibilidad 2025", "cifras": "Volumen y operaciones anuales 2023, 2024 y 2025", "url": "https://www.bolsamercantil.com.co/sites/default/files/2026-02/Anexo%200.%20Informe%20de%20Gestio%CC%81n%20y%20Sostenibilidad%202025_2.pdf" },
+    { "id": "F2", "documento": "BMC – Informe de Gestión y Sostenibilidad 2024", "cifras": "Volumen y operaciones anuales 2022, 2023 y 2024", "url": "https://www.bolsamercantil.com.co/sites/default/files/2025-02/Informe%20de%20gesti%C3%B3n%20y%20sostenibilidad%202024.pdf" },
+    { "id": "F3", "documento": "BMC – Informe de Gestión y Sostenibilidad 2023", "cifras": "Volumen y operaciones anuales 2021, 2022 y 2023", "url": "https://www.bolsamercantil.com.co/sites/default/files/2024-03/Informe%20de%20gesti%C3%B3n%20y%20sostenibilidad%202023_0.pdf" },
+    { "id": "F4", "documento": "BMC – Informe de Sostenibilidad 2022", "cifras": "Volumen anual 2020, 2021 y 2022", "url": "https://www.bolsamercantil.com.co/sites/default/files/2023-02/3%20Informe%20Sostenibilidad%202022%20JD.pdf" },
+    { "id": "F5", "documento": "Base de operaciones MERCOP 2025 («2. MCP y MERCOP.xlsx», Tipo_entidad = Mercop)", "cifras": "Valor y operaciones por mes de 2025 (84 operaciones tras quitar 16 duplicados)", "url": "" }
+  ],
+  "meses": [
+    { "periodo": "ene 2025", "anio": 2025, "mes": 1,  "valor": 1339.2,  "operaciones": 2,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "feb 2025", "anio": 2025, "mes": 2,  "valor": 600.0,   "operaciones": 1,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "mar 2025", "anio": 2025, "mes": 3,  "valor": 6943.5,  "operaciones": 6,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "abr 2025", "anio": 2025, "mes": 4,  "valor": 7059.0,  "operaciones": 8,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "may 2025", "anio": 2025, "mes": 5,  "valor": 9362.0,  "operaciones": 6,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "jun 2025", "anio": 2025, "mes": 6,  "valor": 11850.0, "operaciones": 10, "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "jul 2025", "anio": 2025, "mes": 7,  "valor": 6506.1,  "operaciones": 10, "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "ago 2025", "anio": 2025, "mes": 8,  "valor": 5624.0,  "operaciones": 8,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "sep 2025", "anio": 2025, "mes": 9,  "valor": 5485.0,  "operaciones": 7,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "oct 2025", "anio": 2025, "mes": 10, "valor": 8596.9,  "operaciones": 8,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "nov 2025", "anio": 2025, "mes": 11, "valor": 12685.6, "operaciones": 10, "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] },
+    { "periodo": "dic 2025", "anio": 2025, "mes": 12, "valor": 6260.1,  "operaciones": 8,  "tipo": "Calculado", "calculo": "Suma de las operaciones MERCOP con fecha de operación en el mes", "fuentes": ["F5"] }
+  ],
+  "anios": [
+    { "anio": 2020, "valor": 13383,  "operaciones": null, "tipo": "Publicado", "fuentes": ["F4"], "nota": "La BMC no publicó el número de operaciones" },
+    { "anio": 2021, "valor": 33202,  "operaciones": 32,   "tipo": "Publicado", "fuentes": ["F3", "F4"], "nota": "" },
+    { "anio": 2022, "valor": 108875, "operaciones": 120,  "tipo": "Publicado", "fuentes": ["F3", "F2"], "nota": "El Informe de Sostenibilidad 2022 menciona 256 operaciones; se usa 120 (informes de gestión 2023 y 2024)" },
+    { "anio": 2023, "valor": 23255,  "operaciones": 21,   "tipo": "Publicado", "fuentes": ["F3", "F2", "F1"], "nota": "Caída por la eliminación de la garantía FAG" },
+    { "anio": 2024, "valor": 62447,  "operaciones": 97,   "tipo": "Publicado", "fuentes": ["F2", "F1"], "nota": "" },
+    { "anio": 2025, "valor": 81209,  "operaciones": 86,   "tipo": "Publicado", "fuentes": ["F1", "F5"], "nota": "La base de operaciones suma 82.311 en 84 operaciones (+1,4%)" }
+  ],
+  "vistas": {
+    "1A":  { "serie": "meses", "desde": 2025, "hasta": 2025, "badge": "Año 2025",    "texto_serie": "Por mes" },
+    "2A":  { "serie": "anios", "desde": 2024, "hasta": 2025, "badge": "2024 – 2025", "texto_serie": "Por año" },
+    "3A":  { "serie": "anios", "desde": 2023, "hasta": 2025, "badge": "2023 – 2025", "texto_serie": "Por año" },
+    "5A":  { "serie": "anios", "desde": 2021, "hasta": 2025, "badge": "2021 – 2025", "texto_serie": "Por año" },
+    "max": { "serie": "anios", "desde": 2020, "hasta": 2025, "badge": "2020 – 2025", "texto_serie": "Por año" }
+  },
+  "notas": [
+    "La BMC no publica cifras mensuales ni trimestrales del MERCOP. La serie mensual de 2025 (1A) sale de la base de operaciones: 84 operaciones tras quitar 16 filas duplicadas.",
+    "La base de 2025 suma $82.311M en 84 operaciones; la BMC reporta $81.209M en 86 operaciones (+1,4%). 1A usa la base por meses y las vistas anuales usan la cifra oficial.",
+    "2020 a 2024 solo tienen total anual publicado; por eso 2A, 3A, 5A y Máx. muestran un punto por año.",
+    "2020: la BMC no publicó el número de operaciones. En Máx. las operaciones cubren 2021 – 2025.",
+    "Último dato publicado: año 2025. La BMC no ha publicado el volumen MERCOP de 2026."
+  ]
+}
+</script>
+
+<script>
+  const DATOS = JSON.parse(document.getElementById('mercop-datos').textContent);
+  const fmt = v => '$' + Math.round(v).toLocaleString('es-CO') + 'M';
+  const num = (x, d = 1) => x.toLocaleString('es-CO', { maximumFractionDigits: d });
+
+  // Serie de cada vista: { t, v, ops, tipo: 'P' publicado | 'C' calculado }
+  function serieDe(r) {
+    const cfg = DATOS.vistas[r];
+    if (cfg.serie === 'meses') {
+      return DATOS.meses.filter(m => m.anio >= cfg.desde && m.anio <= cfg.hasta)
+        .map(m => ({ t: m.periodo, v: m.valor, ops: m.operaciones, tipo: 'C' }));
+    }
+    return DATOS.anios.filter(a => a.anio >= cfg.desde && a.anio <= cfg.hasta)
+      .map(a => ({ t: String(a.anio), v: a.valor, ops: a.operaciones, tipo: 'P', nota: a.nota }));
+  }
+
+  // Encabezado calculado solo con lo transado en los puntos visibles
+  function encabezado(vista, r) {
+    const cfg = DATOS.vistas[r];
+    const total = vista.reduce((s, d) => s + d.v, 0);
+    const primero = vista[0], ultimo = vista[vista.length - 1];
+    const max = vista.reduce((a, d) => (d.v > a.v ? d : a));
+    const prom = Math.round(total / vista.length);
+    const unidad = cfg.serie === 'meses' ? 'mensual' : 'anual';
+    const etq = cfg.serie === 'meses' ? 'mes' : 'año';
+
+    document.getElementById('valor').textContent = fmt(total);
+    document.getElementById('badge').textContent = cfg.badge;
+
+    const conOps = vista.filter(d => d.ops != null);
+    const ops = conOps.reduce((s, d) => s + d.ops, 0);
+    const delta = document.getElementById('delta');
+    delta.textContent = conOps.length === vista.length
+      ? `en ${num(ops, 0)} operaciones`
+      : `${num(ops, 0)} operaciones ${conOps[0].t} – ${conOps[conOps.length - 1].t}`;
+
+    document.getElementById('meta').textContent =
+      `Promedio ${unidad}: ${fmt(prom)} · Mayor ${etq}: ${fmt(max.v)} (${max.t})` +
+      ` · Crecimiento ${primero.t} → ${ultimo.t}: ×${num(ultimo.v / primero.v)}`;
+    document.getElementById('serie').textContent = cfg.texto_serie;
+  }
+
+  const ctx = document.getElementById('mercopChart').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(30, 111, 200, 0.30)');
+  gradient.addColorStop(1, 'rgba(30, 111, 200, 0.0)');
+
+  let vista = [];
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Valor negociado ($M COP)',
+        data: [],
+        borderColor: '#0A1F5C',
+        borderWidth: 2.5,
+        fill: true,
+        backgroundColor: gradient,
+        cubicInterpolationMode: 'monotone',
+        pointRadius: 4,
+        pointBackgroundColor: '#0A1F5C',
+        pointBorderColor: '#FFFFFF',
+        pointBorderWidth: 1.5,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#1E6FC8',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0A1F5C',
+          titleColor: '#FFFFFF',
+          bodyColor: '#DCE6F5',
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            label: c => {
+              const d = vista[c.dataIndex];
+              const lineas = ['Valor negociado: ' + fmt(d.v),
+                d.ops == null ? 'Operaciones: no publicado' : 'Operaciones: ' + num(d.ops, 0),
+                d.tipo === 'P' ? 'Dato publicado por la BMC' : 'Calculado con la base de operaciones'];
+              if (d.nota) lineas.push(d.nota);
+              return lineas;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6B7280', maxRotation: 0, autoSkip: true } },
+        y: {
+          beginAtZero: true,
+          grid: { color: '#E1E4EA' },
+          border: { display: false },
+          ticks: { color: '#6B7280', callback: v => '$' + v.toLocaleString('es-CO') + 'M' }
+        }
+      }
+    }
+  });
+
+  // r: '1A' (2025 por mes) | '2A' | '3A' | '5A' | 'max' (por año)
+  function rango(r) {
+    vista = serieDe(r);
+    chart.data.labels = vista.map(d => d.t);
+    chart.data.datasets[0].data = vista.map(d => d.v);
+    chart.update();
+    encabezado(vista, r);
+  }
+
+  document.getElementById('tfs').addEventListener('click', e => {
+    const b = e.target.closest('.tf-btn');
+    if (!b) return;
+    document.querySelectorAll('.tf-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    rango(b.dataset.r);
+  });
+
+  document.getElementById('ultimo-dato').textContent = 'Último dato: ' + DATOS.ultimo_dato;
+
+  // Descarga .xlsx generada en el navegador a partir del bloque JSON
+  function descargarXlsx() {
+    const msg = document.getElementById('dl-msg');
+    if (typeof XLSX === 'undefined') { msg.textContent = 'No se pudo cargar la librería de Excel. Revisa tu conexión e inténtalo de nuevo.'; msg.hidden = false; return; }
+    msg.hidden = true;
+    const fuentesTxt = ids => ids.join(', ');
+    const urlDe = ids => ids.map(id => DATOS.fuentes.find(f => f.id === id).url || 'Archivo interno').join(' | ');
+
+    const hMes = [['Periodo', 'Año', 'Mes', 'Valor negociado (M COP)', 'Operaciones', 'Tipo de dato', 'Cálculo', 'Fuentes (ver hoja Fuentes)', 'Enlaces']];
+    DATOS.meses.forEach(d => hMes.push([d.periodo, d.anio, d.mes, d.valor, d.operaciones, d.tipo, d.calculo, fuentesTxt(d.fuentes), urlDe(d.fuentes)]));
+
+    const hAnio = [['Año', 'Valor negociado (M COP)', 'Operaciones realizadas', 'Tipo de dato', 'Nota', 'Fuentes (ver hoja Fuentes)', 'Enlaces']];
+    DATOS.anios.forEach(a => hAnio.push([a.anio, a.valor, a.operaciones == null ? 'No publicado' : a.operaciones, a.tipo, a.nota, fuentesTxt(a.fuentes), urlDe(a.fuentes)]));
+
+    const hVistas = [['Botón', 'Serie', 'Desde', 'Hasta', 'Etiqueta']];
+    Object.entries(DATOS.vistas).forEach(([k, v]) => hVistas.push([k === 'max' ? 'Máx.' : k, v.texto_serie, v.desde, v.hasta, v.badge]));
+
+    const hFuentes = [['ID', 'Documento', 'Cifras que aporta', 'Enlace']];
+    DATOS.fuentes.forEach(f => hFuentes.push([f.id, f.documento, f.cifras, f.url || 'Archivo interno entregado por el usuario']));
+
+    const hNotas = [[DATOS.titulo], ['Unidad: ' + DATOS.unidad], ['Elaborado: ' + DATOS.fecha_elaboracion], []];
+    DATOS.notas.forEach((n, i) => hNotas.push([(i + 1) + '. ' + n]));
+
+    const hoja = (filas, anchos) => { const ws = XLSX.utils.aoa_to_sheet(filas); ws['!cols'] = anchos.map(w => ({ wch: w })); return ws; };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, hoja(hMes, [10, 6, 5, 22, 12, 12, 60, 14, 40]), 'Mensual');
+    XLSX.utils.book_append_sheet(wb, hoja(hAnio, [6, 22, 22, 12, 70, 14, 90]), 'Anual');
+    XLSX.utils.book_append_sheet(wb, hoja(hVistas, [8, 10, 8, 8, 14]), 'Pestañas');
+    XLSX.utils.book_append_sheet(wb, hoja(hFuentes, [5, 70, 60, 110]), 'Fuentes');
+    XLSX.utils.book_append_sheet(wb, hoja(hNotas, [150]), 'Notas');
+    const wsF = wb.Sheets['Fuentes'];
+    DATOS.fuentes.forEach((f, i) => { const c = wsF['D' + (i + 2)]; if (c && f.url) c.l = { Target: f.url }; });
+    XLSX.writeFile(wb, 'mercop_valor_negociado.xlsx');
+  }
+  document.getElementById('descargar').addEventListener('click', descargarXlsx);
+
+  rango('max');
+</script>

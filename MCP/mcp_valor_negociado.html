@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP BMC - Valor negociado</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bmc-navy: #0A1F5C;
+      --bmc-blue: #1E6FC8;
+      --bmc-blue-soft: rgba(30, 111, 200, 0.10);
+      --bg: #F2F2F2;
+      --card: #FFFFFF;
+      --line: #E1E4EA;
+      --muted: #6B7280;
+      --up: #1E7A46;
+      --down: #B42318;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--bmc-navy);
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      padding: 20px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--bmc-navy);
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 800px;
+      box-sizing: border-box;
+      box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08);
+    }
+    .header-title {
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+    .chart-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 6px 0 2px;
+      line-height: 1.3;
+    }
+    .chart-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .main-value {
+      font-size: 36px;
+      font-weight: 700;
+      margin: 8px 0 4px;
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .unit { font-size: 18px; color: var(--muted); font-weight: 500; }
+    .badge {
+      font-size: 14px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      align-self: center;
+    }
+    .badge.up { background: rgba(30, 122, 70, 0.12); color: var(--up); }
+    .badge.down { background: rgba(180, 35, 24, 0.10); color: var(--down); }
+    .badge.neutral { background: var(--bmc-blue-soft); color: var(--bmc-navy); }
+    .delta { font-size: 15px; font-weight: 600; align-self: center; }
+    .delta.up { color: var(--up); }
+    .delta.down { color: var(--down); }
+    .meta-info { font-size: 12px; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 20px;
+    }
+    .timeframes { display: flex; gap: 4px; overflow-x: auto; }
+    .tf-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: var(--muted);
+      padding: 8px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .tf-btn:hover { color: var(--bmc-blue); }
+    .tf-btn.active { color: var(--bmc-navy); border-bottom-color: var(--bmc-blue); }
+    .tf-btn:focus-visible, .dl-btn:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: 2px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); padding-bottom: 8px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+    .legend i.full { background: var(--bmc-navy); }
+    .legend i.part { background: #FFFFFF; border: 2px solid var(--bmc-navy); box-sizing: border-box; }
+    .chart-container { position: relative; height: 320px; width: 100%; }
+    .footnote {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+    }
+    .dl-btn {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--bmc-blue);
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .dl-btn:hover { border-color: var(--bmc-blue); background: var(--bmc-blue-soft); }
+    .dl-btn svg { width: 14px; height: 14px; }
+    @media (max-width: 600px) {
+      .main-value { font-size: 30px; }
+      .dl-btn { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header-title">Mercado de Compras Públicas • Bolsa Mercantil de Colombia</div>
+  <h1 class="chart-title">Valor negociado en el MCP por trimestre</h1>
+  <div class="chart-subtitle">Compras públicas cerradas en rueda de negociación · pesos colombianos (COP)</div>
+
+  <div class="main-value">
+    <span id="valor">—</span><span class="unit">COP</span>
+    <span id="badge" class="badge neutral"></span>
+    <span id="delta" class="delta up"></span>
+  </div>
+
+  <div class="meta-info" id="meta"></div>
+
+  <div class="controls">
+    <div class="timeframes" id="tfs">
+      <button class="tf-btn" data-r="2024" title="Ruedas de 2024 (desde mayo)">2024</button>
+      <button class="tf-btn" data-r="2025" title="Año 2025 completo">2025</button>
+      <button class="tf-btn" data-r="2026" title="Ruedas de 2026 (hasta octubre)">2026</button>
+      <button class="tf-btn active" data-r="max" title="Todos los trimestres con datos">Máx.</button>
+    </div>
+    <div class="legend">
+      <span><i class="full"></i>Trimestre completo</span>
+      <span><i class="part"></i>Trimestre parcial</span>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="mcpChart" role="img" aria-label="Valor negociado en el MCP por trimestre"></canvas>
+  </div>
+
+  <div class="footnote">
+    <span>Fuente: Bolsa Mercantil de Colombia – portal de transparencia del MCP</span>
+    <span>·</span>
+    <span id="ultimo-dato"></span>
+    <button class="dl-btn" id="descargar" type="button" title="Descarga los datos de la gráfica con sus fuentes y notas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
+      </svg>
+      Descargar datos (.xlsx)
+    </button>
+  </div>
+</div>
+
+<!-- Datos y referencias de la gráfica. La gráfica y la descarga .xlsx leen de aquí. Para actualizar, editar solo este bloque. -->
+<script type="application/json" id="mcp-datos">
+{
+  "titulo": "MCP – Valor negociado por trimestre",
+  "unidad": "Pesos colombianos (COP), valor de cierre de cada operación",
+  "fecha_elaboracion": "2026-11-01",
+  "fuentes": [
+    {
+      "id": "F1",
+      "documento": "BMC – Portal de transparencia del Mercado de Compras Públicas (detalle de cada operación en el SIB)",
+      "cifras": "Fecha de rueda y valor de cierre de las 929 operaciones con valor, abr-2024 a oct-2026",
+      "url": "https://bpmapps.bolsamercantil.com.co/transparencia/transparencia.aspx"
+    },
+    {
+      "id": "F2",
+      "documento": "BMC – Negociaciones en el MCP",
+      "cifras": "El histórico publicado cubre las operaciones cerradas desde el 30-abr-2024",
+      "url": "https://www.bolsamercantil.com.co/negociaciones-en-el-mcp"
+    },
+    {
+      "id": "F3",
+      "documento": "La República – Sector público ahorró $90.000 millones por compras en Bolsa Mercantil en el trimestre (14-may-2025)",
+      "cifras": "Cifra oficial de la BMC: el MCP cerró 2024 con cerca de $2 billones negociados",
+      "url": "https://www.larepublica.co/finanzas/entidades-publicas-ahorraron-90-000-millones-por-compras-en-la-bolsa-mercantil-4133481"
+    },
+    {
+      "id": "F4",
+      "documento": "ABC Economía – Bolsa Mercantil logra ahorros por $40.000 millones en compras públicas (26-abr-2026)",
+      "cifras": "Cifra oficial de la BMC: 1T 2026 con negociaciones por $395.758 millones",
+      "url": "https://abceconomia.co/?p=48518"
+    }
+  ],
+  "trimestres": [
+    {
+      "periodo": "2T 2024",
+      "anio": 2024,
+      "trimestre": 2,
+      "valor": 277000408003,
+      "operaciones": 38,
+      "procesos": 29,
+      "entidades": 16,
+      "primera_rueda": "2024-05-06",
+      "ultima_rueda": "2024-06-26",
+      "tipo": "Parcial",
+      "nota": "Parcial: el portal de transparencia empieza con los procesos abiertos desde el 10-abr-2024 (primera rueda: 6-may-2024)",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "3T 2024",
+      "anio": 2024,
+      "trimestre": 3,
+      "valor": 316067249546,
+      "operaciones": 92,
+      "procesos": 46,
+      "entidades": 25,
+      "primera_rueda": "2024-07-02",
+      "ultima_rueda": "2024-09-30",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "4T 2024",
+      "anio": 2024,
+      "trimestre": 4,
+      "valor": 570169378582,
+      "operaciones": 145,
+      "procesos": 95,
+      "entidades": 48,
+      "primera_rueda": "2024-10-01",
+      "ultima_rueda": "2024-12-31",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "1T 2025",
+      "anio": 2025,
+      "trimestre": 1,
+      "valor": 1249350931619,
+      "operaciones": 114,
+      "procesos": 43,
+      "entidades": 31,
+      "primera_rueda": "2025-01-03",
+      "ultima_rueda": "2025-03-28",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "2T 2025",
+      "anio": 2025,
+      "trimestre": 2,
+      "valor": 476595580981,
+      "operaciones": 64,
+      "procesos": 42,
+      "entidades": 23,
+      "primera_rueda": "2025-04-01",
+      "ultima_rueda": "2025-06-27",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "3T 2025",
+      "anio": 2025,
+      "trimestre": 3,
+      "valor": 504765296659,
+      "operaciones": 125,
+      "procesos": 56,
+      "entidades": 30,
+      "primera_rueda": "2025-07-03",
+      "ultima_rueda": "2025-09-30",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "4T 2025",
+      "anio": 2025,
+      "trimestre": 4,
+      "valor": 828967720805,
+      "operaciones": 103,
+      "procesos": 64,
+      "entidades": 40,
+      "primera_rueda": "2025-10-01",
+      "ultima_rueda": "2025-12-31",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "1T 2026",
+      "anio": 2026,
+      "trimestre": 1,
+      "valor": 270410487837,
+      "operaciones": 62,
+      "procesos": 33,
+      "entidades": 28,
+      "primera_rueda": "2026-01-06",
+      "ultima_rueda": "2026-03-30",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "2T 2026",
+      "anio": 2026,
+      "trimestre": 2,
+      "valor": 574314700848,
+      "operaciones": 108,
+      "procesos": 46,
+      "entidades": 31,
+      "primera_rueda": "2026-04-01",
+      "ultima_rueda": "2026-06-30",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "3T 2026",
+      "anio": 2026,
+      "trimestre": 3,
+      "valor": 374908357838,
+      "operaciones": 62,
+      "procesos": 34,
+      "entidades": 23,
+      "primera_rueda": "2026-07-03",
+      "ultima_rueda": "2026-09-23",
+      "tipo": "Completo",
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "periodo": "4T 2026",
+      "anio": 2026,
+      "trimestre": 4,
+      "valor": 22783729689,
+      "operaciones": 16,
+      "procesos": 12,
+      "entidades": 9,
+      "primera_rueda": "2026-10-02",
+      "ultima_rueda": "2026-10-28",
+      "tipo": "Parcial",
+      "nota": "Parcial: solo ruedas de octubre (hasta el 28-oct-2026)",
+      "fuentes": [
+        "F1"
+      ]
+    }
+  ],
+  "anios": [
+    {
+      "anio": 2024,
+      "valor": 1163237036131,
+      "operaciones": 275,
+      "procesos": 166,
+      "entidades": 59,
+      "nota": "Desde abril (inicio del portal). La BMC informó negociaciones por cerca de $2 billones en todo 2024 (F3).",
+      "fuentes": [
+        "F1",
+        "F3"
+      ]
+    },
+    {
+      "anio": 2025,
+      "valor": 3059679530064,
+      "operaciones": 406,
+      "procesos": 200,
+      "entidades": 82,
+      "nota": "",
+      "fuentes": [
+        "F1"
+      ]
+    },
+    {
+      "anio": 2026,
+      "valor": 1242417276213,
+      "operaciones": 248,
+      "procesos": 122,
+      "entidades": 63,
+      "nota": "Año en curso: hasta el 28-oct-2026. La BMC informó $395.758 millones negociados en el 1T 2026 (F4).",
+      "fuentes": [
+        "F1",
+        "F4"
+      ]
+    }
+  ],
+  "notas": [
+    "Cada trimestre suma el valor de cierre de las operaciones cuya rueda de negociación ocurrió en ese trimestre. No incluye adiciones posteriores.",
+    "El portal de transparencia de la BMC solo publica procesos abiertos desde el 10-abr-2024; por eso el 2T 2024 está incompleto y no hay datos anteriores. El 4T 2026 solo tiene octubre.",
+    "Una operación (7490756, proceso 214) figura en el portal sin valor en el sistema de la BMC y no se suma.",
+    "Las cifras oficiales que divulga la BMC son mayores que las del portal (2024: cerca de $2 billones frente a $1,16 billones desde abril; 1T 2026: $395.758 millones frente a $270.410 millones). La diferencia puede deberse a negociaciones de procesos anteriores al portal u otros conceptos que la BMC incluye en su cifra; no fue posible verificarlo.",
+    "Las líneas punteadas y los puntos huecos marcan trimestres parciales."
+  ]
+}
+</script>
+
+<script>
+  const DATOS = JSON.parse(document.getElementById('mcp-datos').textContent);
+  // Serie que usa la gráfica: { t, anio, v, n, parcial }
+  const serie = DATOS.trimestres.map(d => ({ t: d.periodo, anio: d.anio, v: d.valor, n: d.operaciones, p: d.procesos, e: d.entidades, parcial: d.tipo === 'Parcial', nota: d.nota }));
+
+  const nf0 = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Montos sin ambigüedad: millones, mil millones y billones (10^12)
+  const fmt = v => {
+    const a = Math.abs(v);
+    if (a >= 1e12) return '$' + nf2.format(a / 1e12) + ' billones';
+    if (a >= 1e9) return '$' + nf1.format(a / 1e9) + ' mil millones';
+    if (a >= 1e6) return '$' + nf1.format(a / 1e6) + ' millones';
+    return '$' + nf0.format(a);
+  };
+  const pesos = v => '$' + nf0.format(Math.round(v));
+  const eje = v => v === 0 ? '$0' : (v >= 1e12 ? '$' + nf1.format(v / 1e12).replace(',0', '') + ' billón' + (v > 1e12 ? 'es' : '') : '$' + nf0.format(v / 1e9) + ' mil mill.');
+  const num = (x, d = 1) => x.toLocaleString('es-CO', { maximumFractionDigits: d });
+
+  // Encabezado calculado solo con lo negociado en los trimestres visibles
+  function encabezado(vista, r) {
+    const total = vista.reduce((s, d) => s + d.v, 0);
+    const ops = vista.reduce((s, d) => s + d.n, 0);
+    const completos = vista.filter(d => !d.parcial);
+    const primero = vista[0], ultimo = vista[vista.length - 1];
+    const max = vista.reduce((a, d) => (d.v > a.v ? d : a));
+    const prom = completos.length ? completos.reduce((s, d) => s + d.v, 0) / completos.length : NaN;
+
+    // Valor principal: total negociado en el lapso
+    document.getElementById('valor').textContent = fmt(total);
+
+    // Etiqueta: qué lapso se está sumando
+    const badge = document.getElementById('badge');
+    badge.textContent = r === 'max' ? `${primero.t} – ${ultimo.t}` : `Año ${r}`;
+    badge.className = 'badge neutral';
+
+    // Delta: cómo se negoció ese total dentro del lapso
+    const delta = document.getElementById('delta');
+    delta.textContent = `en ${num(ops, 0)} operaciones`;
+    delta.className = 'delta up';
+
+    let meta = `${pesos(total)} · Promedio por trimestre completo: ${isFinite(prom) ? fmt(prom) : '—'} · Mayor trimestre: ${fmt(max.v)} (${max.t})`;
+    if (completos.length >= 2) {
+      const a = completos[0], b = completos[completos.length - 1];
+      meta += ` · ${a.t} → ${b.t}: ×${num(b.v / a.v)}`;
+    }
+    const parciales = vista.filter(d => d.parcial).map(d => d.t);
+    if (parciales.length) meta += ` · Parcial${parciales.length > 1 ? 'es' : ''}: ${parciales.join(' y ')}`;
+    if (r === '2024') meta += ' · La BMC informó cerca de $2 billones en todo 2024; el portal solo cubre desde abril';
+    if (r === '2026') meta += ' · La BMC informó $395.758 millones en el 1T 2026 (el portal suma $270.410 millones)';
+    document.getElementById('meta').textContent = meta;
+  }
+
+  const ctx = document.getElementById('mcpChart').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(30, 111, 200, 0.30)');
+  gradient.addColorStop(1, 'rgba(30, 111, 200, 0.0)');
+
+  let vista = serie;
+  const esParcial = i => vista[i] && vista[i].parcial;
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Valor negociado (COP)',
+        data: [],
+        borderColor: '#0A1F5C',
+        borderWidth: 2.5,
+        fill: true,
+        backgroundColor: gradient,
+        cubicInterpolationMode: 'monotone',
+        segment: { borderDash: c => (esParcial(c.p0DataIndex) || esParcial(c.p1DataIndex)) ? [5, 4] : undefined },
+        pointRadius: 4,
+        pointBackgroundColor: c => esParcial(c.dataIndex) ? '#FFFFFF' : '#0A1F5C',
+        pointBorderColor: c => esParcial(c.dataIndex) ? '#0A1F5C' : '#FFFFFF',
+        pointBorderWidth: c => esParcial(c.dataIndex) ? 2 : 1.5,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#1E6FC8',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0A1F5C',
+          titleColor: '#FFFFFF',
+          bodyColor: '#DCE6F5',
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            label: c => {
+              const d = vista[c.dataIndex];
+              const out = ['Valor negociado: ' + fmt(d.v), pesos(d.v),
+                `${num(d.n, 0)} operaciones · ${num(d.p, 0)} procesos · ${num(d.e, 0)} entidades`];
+              if (d.parcial) out.push(d.nota);
+              return out;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#6B7280', maxRotation: 0, autoSkip: true }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: '#E1E4EA' },
+          border: { display: false },
+          ticks: { color: '#6B7280', maxTicksLimit: 7, callback: v => eje(v) }
+        }
+      }
+    }
+  });
+
+  // r: '2024' | '2025' | '2026' (trimestres del año) | 'max' (todos los trimestres)
+  function rango(r) {
+    vista = r === 'max' ? serie : serie.filter(d => d.anio === Number(r));
+    chart.data.labels = vista.map(d => d.t);
+    chart.data.datasets[0].data = vista.map(d => d.v);
+    chart.update();
+    encabezado(vista, r);
+  }
+
+  document.getElementById('tfs').addEventListener('click', e => {
+    const b = e.target.closest('.tf-btn');
+    if (!b) return;
+    document.querySelectorAll('.tf-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    rango(b.dataset.r);
+  });
+
+  const ult = DATOS.trimestres[DATOS.trimestres.length - 1];
+  document.getElementById('ultimo-dato').textContent = 'Último dato: ' + ult.periodo + ' (rueda del ' + ult.ultima_rueda.split('-').reverse().join('/') + ')';
+
+  // Descarga .xlsx generada en el navegador a partir del bloque JSON
+  function descargarXlsx() {
+    if (typeof XLSX === 'undefined') { alert('No se pudo cargar el generador de Excel. Revisa tu conexión a internet e inténtalo de nuevo.'); return; }
+    const fuentesTxt = ids => ids.join(', ');
+    const urlDe = ids => ids.map(id => DATOS.fuentes.find(f => f.id === id).url).join(' | ');
+
+    const hTrim = [['Periodo', 'Año', 'Trimestre', 'Valor negociado (COP)', 'Operaciones', 'Procesos', 'Entidades compradoras', 'Primera rueda', 'Última rueda', 'Tipo de dato', 'Nota', 'Fuentes (ver hoja Fuentes)', 'Enlaces']];
+    DATOS.trimestres.forEach(d => hTrim.push([d.periodo, d.anio, d.trimestre, d.valor, d.operaciones, d.procesos, d.entidades, d.primera_rueda, d.ultima_rueda, d.tipo, d.nota, fuentesTxt(d.fuentes), urlDe(d.fuentes)]));
+
+    const hAnio = [['Año', 'Valor negociado (COP)', 'Operaciones', 'Procesos', 'Entidades compradoras', 'Nota', 'Fuentes (ver hoja Fuentes)', 'Enlaces']];
+    DATOS.anios.forEach(a => hAnio.push([a.anio, a.valor, a.operaciones, a.procesos, a.entidades, a.nota, fuentesTxt(a.fuentes), urlDe(a.fuentes)]));
+
+    const hFuentes = [['ID', 'Documento', 'Cifras que aporta', 'Enlace']];
+    DATOS.fuentes.forEach(f => hFuentes.push([f.id, f.documento, f.cifras, f.url]));
+
+    const hNotas = [[DATOS.titulo], ['Unidad: ' + DATOS.unidad], ['Elaborado: ' + DATOS.fecha_elaboracion], []];
+    DATOS.notas.forEach((n, i) => hNotas.push([(i + 1) + '. ' + n]));
+
+    const hoja = (filas, anchos, copCols) => {
+      const ws = XLSX.utils.aoa_to_sheet(filas);
+      ws['!cols'] = anchos.map(w => ({ wch: w }));
+      (copCols || []).forEach(C => {
+        for (let R = 1; R < filas.length; R++) { const c = ws[XLSX.utils.encode_cell({ r: R, c: C })]; if (c && c.t === 'n') c.z = '#,##0'; }
+      });
+      return ws;
+    };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, hoja(hTrim, [10, 6, 9, 22, 11, 9, 12, 12, 12, 11, 70, 14, 70], [3]), 'Trimestral');
+    XLSX.utils.book_append_sheet(wb, hoja(hAnio, [6, 22, 11, 9, 12, 80, 14, 90], [1]), 'Anual');
+    XLSX.utils.book_append_sheet(wb, hoja(hFuentes, [5, 70, 70, 110]), 'Fuentes');
+    XLSX.utils.book_append_sheet(wb, hoja(hNotas, [150]), 'Notas');
+
+    // Enlaces clicables en la hoja de fuentes
+    const wsF = wb.Sheets['Fuentes'];
+    DATOS.fuentes.forEach((f, i) => { const c = wsF['D' + (i + 2)]; if (c) c.l = { Target: f.url }; });
+
+    XLSX.writeFile(wb, 'mcp_valor_negociado_trimestral.xlsx');
+  }
+  document.getElementById('descargar').addEventListener('click', descargarXlsx);
+
+  rango('max');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,381 @@
+<title>MERCOP por tipo de emisor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  /* Layout: tarjeta Atra-e (borde navy, pestañas subrayadas) con pastel a la izquierda y tabla a la derecha; apila en móvil. */
+  :root {
+    --bmc-navy: #0A1F5C;
+    --bmc-blue: #1E6FC8;
+    --bmc-blue-soft: rgba(30, 111, 200, 0.10);
+    --bg: #F2F2F2;
+    --card: #FFFFFF;
+    --line: #E1E4EA;
+    --muted: #6B7280;
+    --up: #1E7A46;
+    --down: #B42318;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--bmc-navy);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    padding-block: 20px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    justify-content: center;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--bmc-navy);
+    border-radius: 10px;
+    padding: 24px;
+    width: 100%;
+    max-width: 800px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08);
+    min-width: 0;
+  }
+  .header-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+  .chart-title { font-size: 20px; font-weight: 700; margin: 6px 0 2px; line-height: 1.3; text-wrap: balance; }
+  .chart-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .controls { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+  .timeframes { display: flex; gap: 4px; overflow-x: auto; }
+  .tf-btn { background: transparent; border: none; border-bottom: 3px solid transparent; color: var(--muted); padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; white-space: nowrap; }
+  .tf-btn:hover { color: var(--bmc-blue); }
+  .tf-btn:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: 2px; }
+  .tf-btn.active { color: var(--bmc-navy); border-bottom-color: var(--bmc-blue); }
+  .tf-btn:disabled { opacity: 0.4; cursor: not-allowed; color: var(--muted); }
+  .kpi-nota { font-size: 12px; line-height: 1.5; color: var(--muted); margin: 0 0 18px; }
+  .kpi-nota strong { color: var(--bmc-navy); font-weight: 600; }
+  .body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px; align-items: center; }
+  .chart-wrap { position: relative; height: 370px; min-width: 0; }
+  .tabla-wrap { min-width: 0; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  th.n, td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td:first-child { white-space: nowrap; }
+  td { padding: 8px 4px; border-bottom: 1px solid var(--line); }
+  tfoot td { font-weight: 700; border-bottom: none; }
+  tr.off td { opacity: 0.35; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: var(--bmc-blue-soft); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+  .est { font-size: 10px; font-weight: 700; color: var(--down); background: rgba(180, 35, 24, 0.10); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+  .empty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; padding: 0 30px; }
+  .footnote { font-size: 12px; color: var(--muted); margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+  .dl-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--bmc-blue); padding: 6px 12px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .dl-btn:hover { border-color: var(--bmc-blue); background: var(--bmc-blue-soft); }
+  .dl-btn:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: 2px; }
+  .dl-btn svg { width: 14px; height: 14px; }
+  .dl-msg { width: 100%; text-align: right; color: var(--down); }
+  @media (max-width: 720px) {
+    .body { grid-template-columns: minmax(0, 1fr); }
+    .chart-wrap { height: 300px; }
+  }
+</style>
+
+<div class="card">
+  <div class="header-title">MERCOP • Bolsa Mercantil de Colombia</div>
+  <h1 class="chart-title">Negociación en MERCOP por tipo de emisor</h1>
+  <div class="chart-subtitle">Mercado de Comercialización entre Privados · pesos colombianos (COP)</div>
+
+  <div class="controls">
+    <div class="timeframes" id="anios">
+      <button class="tf-btn" id="a-2024" data-a="2024" title="Año 2024, estimado por producto">2024 (est.)</button>
+      <button class="tf-btn" id="a-2025" data-a="2025" title="Año 2025, operaciones reales">2025</button>
+      <button class="tf-btn active" id="a-todos" data-a="todos" title="Histórico 2020 – 2025">Máx.</button>
+    </div>
+    <div class="timeframes" id="metrica">
+      <button class="tf-btn active" id="m-valor" data-m="valor">Valor ($)</button>
+      <button class="tf-btn" id="m-ops" data-m="ops">Operaciones</button>
+    </div>
+  </div>
+
+  <p class="kpi-nota" id="nota"></p>
+
+  <div class="body">
+    <div class="chart-wrap">
+      <canvas id="pastel" aria-label="Gráfico de pastel por tipo de emisor"></canvas>
+      <div class="empty" id="vacio"></div>
+    </div>
+    <div class="tabla-wrap">
+      <table>
+        <thead><tr><th>Emisor</th><th class="n">Valor</th><th class="n">Ops.</th><th class="n">%</th></tr></thead>
+        <tbody id="tabla"></tbody>
+        <tfoot id="total"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <span>Fuente: Bolsa Mercantil de Colombia</span>
+    <span>·</span>
+    <span id="ultimo-dato">Último dato: dic. 2025</span>
+    <button class="dl-btn" id="descargar" type="button" title="Descarga los datos de la gráfica con sus fuentes y notas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path>
+      </svg>
+      Descargar datos (.xlsx)
+    </button>
+    <span class="dl-msg" id="dl-msg" hidden></span>
+  </div>
+</div>
+
+<script>
+  const FUENTES = {
+    F1: { doc: 'BMC – Informe de Gestión y Sostenibilidad 2025 (totales 2023–2025)', url: 'https://www.bolsamercantil.com.co/sites/default/files/2026-02/Anexo%200.%20Informe%20de%20Gestio%CC%81n%20y%20Sostenibilidad%202025_2.pdf' },
+    F2: { doc: 'Base de operaciones MERCOP 2025 («2. MCP y MERCOP.xlsx», Tipo_entidad = Mercop, 84 operaciones sin duplicados)', url: '' },
+    F3: { doc: 'BMC – Informe de Gestión y Sostenibilidad 2024 (arroz y leche 2024)', url: 'https://www.bolsamercantil.com.co/sites/default/files/2025-02/Informe%20de%20gesti%C3%B3n%20y%20sostenibilidad%202024.pdf' },
+    F4: { doc: 'BMC – Informe de Gestión y Sostenibilidad 2023 (totales 2021–2023)', url: 'https://www.bolsamercantil.com.co/sites/default/files/2024-03/Informe%20de%20gesti%C3%B3n%20y%20sostenibilidad%202023_0.pdf' },
+    F5: { doc: 'BMC – Informe de Sostenibilidad 2022 (total 2020)', url: 'https://www.bolsamercantil.com.co/sites/default/files/2023-02/3%20Informe%20Sostenibilidad%202022%20JD.pdf' }
+  };
+
+  const SEGMENTOS = ['Micro', 'Pequeña', 'Mediana', 'Grande', 'Persona natural', 'ND'];
+  const NOMBRES = { 'ND': 'Sin clasificar' };
+  const COLORES = { 'Micro': '#0A1F5C', 'Pequeña': '#1E6FC8', 'Mediana': '#7A9FD1', 'Grande': '#00AEEF', 'Persona natural': '#3FA65A', 'ND': '#B8BEC9' };
+
+  // 2025: agregado por tipo de emisor de la base de operaciones MERCOP. [valor COP, operaciones]
+  const EMISORES_2025 = {
+    'Micro': [3500000000, 3],
+    'Pequeña': [5400000000, 4],
+    'Mediana': [5439688240, 7],
+    'Grande': [50517116200, 58],
+    'Persona natural': [10029200000, 7],
+    'ND': [7425359005, 5]
+  };
+  // 2024: estimado. Arroz ($26.998 M) con la mezcla de emisores del arroz 2025; leche ($29.588 M) con la de la leche 2025 (100% Grande).
+  const EMISORES_2024_EST = {
+    'Micro': 4461594395,
+    'Pequeña': 6883602780,
+    'Mediana': 2868167825,
+    'Grande': 29588000000,
+    'Persona natural': 12784635000,
+    'ND': 5861000000
+  };
+
+  // Totales anuales publicados por la BMC (COP). ops null = no publicado.
+  const ANIOS = {
+    2020: { periodo: 'Año 2020', valor: 13383e6, ops: null, fuentes: ['F5'] },
+    2021: { periodo: 'Año 2021', valor: 33202e6, ops: 32, fuentes: ['F4'] },
+    2022: { periodo: 'Año 2022', valor: 108875e6, ops: 120, fuentes: ['F4'] },
+    2023: { periodo: 'Año 2023', valor: 23255e6, ops: 21, fuentes: ['F4', 'F1'] },
+    2024: { periodo: 'Año 2024', valor: 62447e6, ops: 97, fuentes: ['F3', 'F1'] },
+    2025: { periodo: 'Año 2025', valor: 82311363445, ops: 84, fuentes: ['F2', 'F1'] }
+  };
+
+  const NOTAS = [
+    '2025: datos reales de la base de operaciones MERCOP (84 operaciones, $82.311 M) tras quitar 16 filas duplicadas. La BMC reporta $81.209 M en 86 operaciones; la diferencia es de 1,4%.',
+    '2024: estimado. Los montos que publica la BMC para arroz ($26.998 M) y leche ($29.588 M) se repartieron con la mezcla de emisores que tuvieron esos productos en 2025. Los $5.861 M restantes (queso, equipos de seguridad y otros) quedan como "Sin clasificar". No hay operaciones por tipo de emisor.',
+    '2020 a 2023: la BMC solo publica el total anual del MERCOP, sin clasificación de emisores. En el histórico su valor aparece como "Sin clasificar".',
+    'Histórico = 2020 + 2021 + 2022 + 2023 + 2024 (estimado) + 2025. Las operaciones solo tienen desglose por emisor en 2025, por eso no se muestran en el histórico.',
+    'Tipo de emisor = tamaño del vendedor (proveedor) registrado en cada operación. Valores en pesos colombianos (COP).'
+  ];
+
+  const nombre = s => NOMBRES[s] || s;
+  const nf = new Intl.NumberFormat('es-CO');
+  const nf1 = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  function dinero(v) {
+    if (v >= 1e9) return '$' + nf1.format(v / 1e9) + ' mil M';
+    if (v >= 1e6) return '$' + nf1.format(v / 1e6) + ' M';
+    return '$' + nf.format(Math.round(v));
+  }
+  function corto(v, m) {
+    if (m !== 'valor') return nf.format(v);
+    if (v >= 1e9) return nf1.format(v / 1e9) + ' mil M';
+    return nf1.format(v / 1e6) + 'M';
+  }
+
+  // Desglose por tipo de emisor de cada vista: { seg: {valor, ops} } (null = no disponible)
+  function vacioAgg() { const a = {}; SEGMENTOS.forEach(s => a[s] = { valor: 0, ops: null }); return a; }
+  function desglose(vista) {
+    const agg = vacioAgg();
+    const sumar = (s, k, v) => { agg[s][k] = (agg[s][k] || 0) + v; };
+    if (vista === '2025' || vista === 'todos') Object.entries(EMISORES_2025).forEach(([s, [v, o]]) => { sumar(s, 'valor', v); sumar(s, 'ops', o); });
+    if (vista === '2024' || vista === 'todos') Object.entries(EMISORES_2024_EST).forEach(([s, v]) => sumar(s, 'valor', v));
+    if (vista === 'todos') {
+      [2020, 2021, 2022, 2023].forEach(a => sumar('ND', 'valor', ANIOS[a].valor));
+      SEGMENTOS.forEach(s => { agg[s].ops = null; });
+    }
+    return agg;
+  }
+  const disponible = { '2024': { valor: true, ops: false }, '2025': { valor: true, ops: true }, 'todos': { valor: true, ops: false } };
+  const NOTA_VISTA = {
+    '2025': '<strong>2025, dato real:</strong> los emisores grandes (procesadores de leche) concentran la mayor parte del valor; personas naturales, micro, pequeñas y medianas vendieron sobre todo arroz y otros productos agro en Casanare, Meta y Caquetá. "Sin clasificar" son 5 operaciones sin tamaño registrado.',
+    '2024': '<strong>2024, estimado:</strong> la BMC no publica el MERCOP por tipo de emisor. Se repartieron los montos de arroz y leche de 2024 con la mezcla de emisores de esos productos en 2025; el resto queda "Sin clasificar". No hay operaciones por emisor.',
+    'todos': '<strong>Histórico 2020 – 2025:</strong> suma de todos los años. De 2020 a 2023 la BMC solo publica el total anual, por eso esos años quedan "Sin clasificar". 2024 es estimado y 2025 es real.'
+  };
+
+  let vista = 'todos', metrica = 'valor';
+  const ocultos = new Set();
+
+  const etiquetasExternas = {
+    id: 'etiquetasExternas',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      const ds = chart.data.datasets[0];
+      const total = ds.data.reduce((a, b, i) => a + (chart.getDataVisibility(i) ? b : 0), 0);
+      if (!total) return;
+      ctx.save();
+      ctx.strokeStyle = '#9CA3AF';
+      ctx.lineWidth = 1;
+      const items = [];
+      meta.data.forEach((arc, i) => {
+        const v = ds.data[i];
+        if (!v || !chart.getDataVisibility(i)) return;
+        const ang = (arc.startAngle + arc.endAngle) / 2;
+        const r = arc.outerRadius;
+        items.push({ v, pct: v / total * 100, derecha: Math.cos(ang) >= 0, cx: arc.x, cy: arc.y, r,
+          x0: arc.x + Math.cos(ang) * r, y0: arc.y + Math.sin(ang) * r,
+          x1: arc.x + Math.cos(ang) * (r + 12), y: arc.y + Math.sin(ang) * (r + 12) });
+      });
+      const ALTO = 34;
+      [true, false].forEach(lado => {
+        const grupo = items.filter(it => it.derecha === lado).sort((a, b) => a.y - b.y);
+        for (let k = 1; k < grupo.length; k++) if (grupo[k].y - grupo[k - 1].y < ALTO) grupo[k].y = grupo[k - 1].y + ALTO;
+      });
+      items.forEach(it => {
+        // Coloca la etiqueta fuera del círculo aunque se haya desplazado hacia abajo
+        const dy = it.y - it.cy, R = it.r + 22;
+        const borde = Math.abs(dy) < R ? Math.sqrt(R * R - dy * dy) : 0;
+        const x2 = it.derecha ? Math.max(it.x1 + 8, it.cx + borde) : Math.min(it.x1 - 8, it.cx - borde);
+        ctx.beginPath(); ctx.moveTo(it.x0, it.y0); ctx.lineTo(it.x1, it.y); ctx.lineTo(x2, it.y); ctx.stroke();
+        const tx = x2 + (it.derecha ? 4 : -4);
+        ctx.textAlign = it.derecha ? 'left' : 'right';
+        ctx.textBaseline = 'middle';
+        ctx.font = '600 12px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#0A1F5C';
+        ctx.fillText(corto(it.v, metrica), tx, it.y - 7);
+        ctx.font = '12px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#6B7280';
+        ctx.fillText(`(${nf1.format(it.pct)}%)`, tx, it.y + 8);
+      });
+      ctx.restore();
+    }
+  };
+
+  const chart = new Chart(document.getElementById('pastel'), {
+    type: 'pie',
+    data: {
+      labels: SEGMENTOS.map(nombre),
+      datasets: [{ data: SEGMENTOS.map(() => 0), backgroundColor: SEGMENTOS.map(s => COLORES[s]), borderColor: '#FFFFFF', borderWidth: 2, hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { left: 88, right: 88, top: 36, bottom: 36 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0A1F5C', titleColor: '#FFFFFF', bodyColor: '#DCE6F5', padding: 12,
+          callbacks: {
+            label: c => {
+              const tot = c.dataset.data.reduce((a, b, i) => a + (c.chart.getDataVisibility(i) ? b : 0), 0);
+              const v = c.parsed;
+              const txt = metrica === 'valor' ? dinero(v) : nf.format(v) + ' operaciones';
+              return ` ${txt} · ${nf1.format(v / tot * 100)}%`;
+            },
+            afterLabel: () => vista === '2024' ? ' Valor estimado' : ''
+          }
+        }
+      }
+    },
+    plugins: [etiquetasExternas]
+  });
+
+  function totales(v) {
+    const lista = v === 'todos' ? [2020, 2021, 2022, 2023, 2024, 2025] : [+v];
+    return { valor: lista.reduce((s, a) => s + ANIOS[a].valor, 0), ops: v === 'todos' ? null : ANIOS[+v].ops };
+  }
+
+  function actualizar() {
+    const disp = disponible[vista];
+    document.querySelectorAll('#metrica button').forEach(b => { b.disabled = !disp[b.dataset.m]; });
+    if (!disp[metrica]) metrica = 'valor';
+    document.querySelectorAll('#metrica button').forEach(b => b.classList.toggle('active', b.dataset.m === metrica));
+    document.getElementById('nota').innerHTML = NOTA_VISTA[vista];
+
+    const agg = desglose(vista);
+    const val = s => agg[s][metrica] || 0;
+    chart.data.datasets[0].data = SEGMENTOS.map(val);
+    SEGMENTOS.forEach((s, i) => { if (chart.getDataVisibility(i) === ocultos.has(s)) chart.toggleDataVisibility(i); });
+    chart.update();
+    const totVis = SEGMENTOS.reduce((a, s) => a + (ocultos.has(s) ? 0 : val(s)), 0);
+
+    const vacio = document.getElementById('vacio');
+    vacio.textContent = 'Todos los tipos de emisor están ocultos. Haz clic en una fila de la tabla para mostrarla.';
+    vacio.style.display = totVis ? 'none' : 'flex';
+
+    const orden = SEGMENTOS.filter(s => agg[s].valor).sort((x, y) => val(y) - val(x) || agg[y].valor - agg[x].valor);
+    const fmt = (v, f) => v == null ? 'n.d.' : f(v);
+    const marca = vista === '2024' ? '<span class="est">EST.</span>' : '';
+    document.getElementById('tabla').innerHTML = orden.map(s => {
+      const pct = totVis && !ocultos.has(s) ? val(s) / totVis * 100 : 0;
+      return `<tr data-s="${s}" class="${ocultos.has(s) ? 'off' : ''}">
+        <td><span class="dot" style="background:${COLORES[s]}"></span>${nombre(s)}${marca}</td>
+        <td class="n">${dinero(agg[s].valor)}</td>
+        <td class="n">${fmt(agg[s].ops, nf.format)}</td>
+        <td class="n">${nf1.format(pct)}%</td></tr>`;
+    }).join('');
+    const t = totales(vista);
+    document.getElementById('total').innerHTML = `<tr><td>Total ${vista === 'todos' ? '2020 – 2025' : vista}</td><td class="n">${dinero(t.valor)}</td><td class="n">${t.ops == null ? 'n.d.' : nf.format(t.ops)}</td><td class="n">100%</td></tr>`;
+  }
+
+  document.getElementById('tabla').addEventListener('click', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    const s = tr.dataset.s;
+    ocultos.has(s) ? ocultos.delete(s) : ocultos.add(s);
+    actualizar();
+  });
+  document.getElementById('anios').addEventListener('click', e => {
+    const b = e.target.closest('.tf-btn'); if (!b) return;
+    document.querySelectorAll('#anios .tf-btn').forEach(x => x.classList.toggle('active', x === b));
+    vista = b.dataset.a;
+    actualizar();
+  });
+  document.getElementById('metrica').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.disabled) return;
+    metrica = b.dataset.m;
+    actualizar();
+  });
+
+  // Descarga: datos de emisores de la gráfica, con fuentes y notas
+  document.getElementById('descargar').addEventListener('click', () => {
+    const msg = document.getElementById('dl-msg');
+    if (typeof XLSX === 'undefined') { msg.textContent = 'No se pudo cargar la librería de Excel. Revisa tu conexión e inténtalo de nuevo.'; msg.hidden = false; return; }
+    msg.hidden = true;
+    const filasVista = (v, etiqueta) => {
+      const agg = desglose(v);
+      return SEGMENTOS.filter(s => agg[s].valor).map(s => [etiqueta, nombre(s), Math.round(agg[s].valor), agg[s].ops == null ? 'n.d.' : agg[s].ops]);
+    };
+    const hEmi = [['Periodo', 'Tipo de emisor', 'Valor negociado (COP)', 'Operaciones'],
+      ...filasVista('2025', '2025 (base de operaciones)'),
+      ...filasVista('2024', '2024 (estimado)'),
+      ...filasVista('todos', 'Histórico 2020 – 2025')];
+    const hAnual = [['Año', 'Periodo', 'Valor negociado (COP)', 'Operaciones', 'Fuentes']];
+    Object.entries(ANIOS).forEach(([a, x]) => hAnual.push([+a, x.periodo, x.valor, x.ops == null ? 'n.d.' : x.ops, x.fuentes.join(', ')]));
+    hAnual.push(['Total', '2020 – 2025', totales('todos').valor, '', '']);
+    const hF = [['ID', 'Documento', 'Enlace'], ...Object.entries(FUENTES).map(([k, f]) => [k, f.doc, f.url || 'Archivo interno entregado por el usuario'])];
+    const hN = [['Notas'], ...NOTAS.map(n => [n]), [''], ['Fuente: Bolsa Mercantil de Colombia. Descargado: ' + new Date().toISOString().slice(0, 10)]];
+
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(hEmi);
+    for (let r = 1; r < hEmi.length; r++) for (const c of [2, 3]) { const x = ws1[XLSX.utils.encode_cell({ r, c })]; if (x && typeof x.v === 'number') x.z = '#,##0'; }
+    ws1['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 22 }, { wch: 12 }];
+    const ws2 = XLSX.utils.aoa_to_sheet(hAnual);
+    for (let r = 1; r < hAnual.length; r++) for (const c of [2, 3]) { const x = ws2[XLSX.utils.encode_cell({ r, c })]; if (x && typeof x.v === 'number') x.z = '#,##0'; }
+    ws2['!cols'] = [{ wch: 7 }, { wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 12 }];
+    const ws3 = XLSX.utils.aoa_to_sheet(hF); ws3['!cols'] = [{ wch: 5 }, { wch: 80 }, { wch: 110 }];
+    Object.values(FUENTES).forEach((f, i) => { const c = ws3['C' + (i + 2)]; if (c && f.url) c.l = { Target: f.url }; });
+    const ws4 = XLSX.utils.aoa_to_sheet(hN); ws4['!cols'] = [{ wch: 150 }];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Emisores');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Anual');
+    XLSX.utils.book_append_sheet(wb, ws3, 'Fuentes');
+    XLSX.utils.book_append_sheet(wb, ws4, 'Notas');
+    XLSX.writeFile(wb, 'mercop_emisores.xlsx');
+  });
+
+  actualizar();
+</script>

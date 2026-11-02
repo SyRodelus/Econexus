@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atra-e BMC - Valor negociado</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bmc-navy: #0A1F5C;
+      --bmc-blue: #1E6FC8;
+      --bmc-blue-soft: rgba(30, 111, 200, 0.10);
+      --bg: #F2F2F2;
+      --card: #FFFFFF;
+      --line: #E1E4EA;
+      --muted: #6B7280;
+      --up: #1E7A46;
+      --down: #B42318;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--bmc-navy);
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      padding: 20px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--bmc-navy);
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 800px;
+      box-sizing: border-box;
+      box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08);
+    }
+    .header-title {
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+    .chart-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 6px 0 2px;
+      line-height: 1.3;
+    }
+    .chart-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .main-value {
+      font-size: 36px;
+      font-weight: 700;
+      margin: 8px 0 4px;
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .unit { font-size: 18px; color: var(--muted); font-weight: 500; }
+    .badge {
+      font-size: 14px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      align-self: center;
+    }
+    .badge.up { background: rgba(30, 122, 70, 0.12); color: var(--up); }
+    .badge.down { background: rgba(180, 35, 24, 0.10); color: var(--down); }
+    .badge.neutral { background: var(--bmc-blue-soft); color: var(--bmc-navy); }
+    .delta { font-size: 15px; font-weight: 600; align-self: center; }
+    .delta.up { color: var(--up); }
+    .delta.down { color: var(--down); }
+    .meta-info { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 20px;
+    }
+    .timeframes { display: flex; gap: 4px; overflow-x: auto; }
+    .tf-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: var(--muted);
+      padding: 8px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .tf-btn:hover { color: var(--bmc-blue); }
+    .tf-btn.active { color: var(--bmc-navy); border-bottom-color: var(--bmc-blue); }
+    .chart-container { position: relative; height: 320px; width: 100%; }
+    .footnote {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+    }
+    .dl-btn {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--bmc-blue);
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .dl-btn:hover { border-color: var(--bmc-blue); background: var(--bmc-blue-soft); }
+    .dl-btn svg { width: 14px; height: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header-title">Atra-e • Bolsa Mercantil de Colombia</div>
+  <h1 class="chart-title">Valor negociado en Atra-e por trimestre</h1>
+  <div class="chart-subtitle">Mercado bursátil de facturas electrónicas · millones de pesos colombianos (COP)</div>
+
+  <div class="main-value">
+    <span id="valor">—</span><span class="unit">COP</span>
+    <span id="badge" class="badge up"></span>
+    <span id="delta" class="delta up"></span>
+  </div>
+
+  <div class="meta-info" id="meta"></div>
+
+  <div class="controls">
+    <div class="timeframes" id="tfs">
+      <button class="tf-btn" data-r="2024" title="Año 2024 completo">1A</button>
+      <button class="tf-btn" data-r="2025" title="Año 2025 completo">2A</button>
+      <button class="tf-btn active" data-r="max" title="Todos los trimestres con datos">Máx.</button>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="atraeChart"></canvas>
+  </div>
+
+  <div class="footnote">
+    <span>Fuente: Bolsa Mercantil de Colombia</span>
+    <span>·</span>
+    <span id="ultimo-dato"></span>
+    <button class="dl-btn" id="descargar" type="button" title="Descarga los datos de la gráfica con sus fuentes y notas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
+      </svg>
+      Descargar datos (.xlsx)
+    </button>
+  </div>
+</div>
+
+<!-- Datos y referencias de la gráfica. La gráfica y la descarga .xlsx leen de aquí. Para actualizar, editar solo este bloque. -->
+<script type="application/json" id="atrae-datos">
+{
+  "titulo": "Atra-e – Valor negociado por trimestre",
+  "unidad": "Millones de pesos colombianos (COP)",
+  "fecha_elaboracion": "2026-10-31",
+  "fuentes": [
+    { "id": "F1", "documento": "BMC – Informe de Gestión y Sostenibilidad 2025 (Anexo 0)", "cifras": "Valor negociado y operaciones anuales 2023, 2024 y 2025", "url": "https://www.bolsamercantil.com.co/sites/default/files/2026-02/Anexo%200.%20Informe%20de%20Gestio%CC%81n%20y%20Sostenibilidad%202025_2.pdf" },
+    { "id": "F2", "documento": "Valora Analitik (vía Yahoo Noticias) – Resultados BMC 1T 2025", "cifras": "1T 2024 = 401 y 1T 2025 = 11.592", "url": "https://es-us.noticias.yahoo.com/bolsa-mercantil-colombia-elev%C3%B3-ganancias-153000966.html" },
+    { "id": "F3", "documento": "BMC – Comunicado de resultados 1S 2025", "cifras": "Acumulado enero–junio: 2024 = 1.312 y 2025 = 26.885", "url": "https://www.bolsamercantil.com.co/la-bolsa-mercantil-crece-en-ingresos-y-reporta-utilidades-record-en-el-primer-semestre" },
+    { "id": "F4", "documento": "BMC – Comunicado de resultados 3T 2025 (6-nov-2025)", "cifras": "Acumulado enero–septiembre: 2024 = 4.044 y 2025 = 59.274", "url": "https://www.bolsamercantil.com.co/node/2405" },
+    { "id": "F5", "documento": "BMC – Presentación de resultados 1T 2026 (diapositiva 15)", "cifras": "1T 2026 = 59.407", "url": "https://www.bolsamercantil.com.co/sites/default/files/2026-05/Presentacio%CC%81n%20Earnings%20Call%201T%20Final%202026%20F.pdf" }
+  ],
+  "trimestres": [
+    { "periodo": "1T 2024", "anio": 2024, "valor": 401,   "tipo": "Publicado", "calculo": "Dato trimestral publicado", "fuentes": ["F2"] },
+    { "periodo": "2T 2024", "anio": 2024, "valor": 911,   "tipo": "Calculado", "calculo": "Acumulado ene–jun 2024 (1.312) − 1T 2024 (401)", "fuentes": ["F3", "F2"] },
+    { "periodo": "3T 2024", "anio": 2024, "valor": 2732,  "tipo": "Calculado", "calculo": "Acumulado ene–sep 2024 (4.044) − acumulado ene–jun 2024 (1.312)", "fuentes": ["F4", "F3"] },
+    { "periodo": "4T 2024", "anio": 2024, "valor": 8805,  "tipo": "Calculado", "calculo": "Total 2024 (12.849) − acumulado ene–sep 2024 (4.044)", "fuentes": ["F1", "F4"] },
+    { "periodo": "1T 2025", "anio": 2025, "valor": 11592, "tipo": "Publicado", "calculo": "Dato trimestral publicado", "fuentes": ["F2"] },
+    { "periodo": "2T 2025", "anio": 2025, "valor": 15293, "tipo": "Calculado", "calculo": "Acumulado ene–jun 2025 (26.885) − 1T 2025 (11.592)", "fuentes": ["F3", "F2"] },
+    { "periodo": "3T 2025", "anio": 2025, "valor": 32389, "tipo": "Calculado", "calculo": "Acumulado ene–sep 2025 (59.274) − acumulado ene–jun 2025 (26.885)", "fuentes": ["F4", "F3"] },
+    { "periodo": "4T 2025", "anio": 2025, "valor": 39098, "tipo": "Calculado", "calculo": "Total 2025 (98.372) − acumulado ene–sep 2025 (59.274)", "fuentes": ["F1", "F4"] },
+    { "periodo": "1T 2026", "anio": 2026, "valor": 59407, "tipo": "Publicado", "calculo": "Dato trimestral publicado", "fuentes": ["F5"] }
+  ],
+  "anios": [
+    { "anio": 2023, "valor": 48,    "operaciones": 3,    "fuentes": ["F1"], "nota": "Operaciones previas al lanzamiento comercial; no se muestra en la gráfica" },
+    { "anio": 2024, "valor": 12849, "operaciones": 107,  "fuentes": ["F1"], "nota": "" },
+    { "anio": 2025, "valor": 98372, "operaciones": 277,  "fuentes": ["F1"], "nota": "" },
+    { "anio": 2026, "valor": 59407, "operaciones": null, "fuentes": ["F5"], "nota": "Solo 1T 2026; año en curso. Operaciones del 1T 2026 no publicadas" }
+  ],
+  "notas": [
+    "La BMC no publica cifras mensuales de Atra-e. Los trimestres 2T, 3T y 4T se obtienen restando acumulados del año publicados por la BMC.",
+    "En 2023 se negociaron $48M en 3 operaciones, antes del lanzamiento comercial a finales de 2024. No aparecen en la gráfica.",
+    "Para el acumulado enero–junio 2025 la BMC reporta 26.885; Valora Analitik citó 26.886. Se usa la cifra de la BMC.",
+    "Último dato publicado: 1T 2026. No hay cifras de Atra-e para 2T y 3T 2026 a la fecha de elaboración."
+  ]
+}
+</script>
+
+<script>
+  const DATOS = JSON.parse(document.getElementById('atrae-datos').textContent);
+  const anio2023 = DATOS.anios.find(a => a.anio === 2023);
+  const NEGOCIADO_2023 = anio2023 ? anio2023.valor : 0;
+  // Serie que usa la gráfica: { t, anio, v, tipo: 'P' publicado | 'C' calculado }
+  const serie = DATOS.trimestres.map(d => ({ t: d.periodo, anio: d.anio, v: d.valor, tipo: d.tipo === 'Publicado' ? 'P' : 'C' }));
+  // Operaciones por año completo (solo años con cifra publicada)
+  const OPERACIONES = {};
+  DATOS.anios.forEach(a => { if (a.anio >= 2024 && a.operaciones != null) OPERACIONES[a.anio] = a.operaciones; });
+
+  const fmt = v => '$' + v.toLocaleString('es-CO') + 'M';
+  const num = (x, d = 1) => x.toLocaleString('es-CO', { maximumFractionDigits: d });
+
+  // Encabezado calculado solo con lo transado en los trimestres visibles
+  function encabezado(vista, r) {
+    const total = vista.reduce((s, d) => s + d.v, 0);
+    const primero = vista[0], ultimo = vista[vista.length - 1];
+    const max = vista.reduce((a, d) => (d.v > a.v ? d : a));
+    const prom = Math.round(total / vista.length);
+
+    // Valor principal: total negociado en el lapso
+    document.getElementById('valor').textContent = fmt(total);
+
+    // Etiqueta: qué lapso se está sumando
+    const badge = document.getElementById('badge');
+    badge.textContent = r === 'max' ? `${primero.t} – ${ultimo.t}` : `Año ${r}`;
+    badge.className = 'badge neutral';
+
+    // Delta: cómo se transó ese total dentro del lapso
+    const delta = document.getElementById('delta');
+    if (r === 'max') {
+      // Suma de operaciones publicadas (2024 + 2025). La BMC no publicó las operaciones del 1T 2026.
+      const opsMax = Object.values(OPERACIONES).reduce((s, n) => s + n, 0);
+      delta.textContent = `${num(opsMax, 0)} operaciones hasta dic. 2025`;
+    } else {
+      delta.textContent = `en ${num(OPERACIONES[r], 0)} operaciones`;
+    }
+    delta.className = 'delta up';
+
+    let meta = `Promedio trimestral: ${fmt(prom)} · Mayor trimestre: ${fmt(max.v)} (${max.t})` +
+      ` · Crecimiento ${primero.t} → ${ultimo.t}: ×${num(ultimo.v / primero.v)}`;
+    if (r === 'max') meta += ` · Con los ${fmt(NEGOCIADO_2023)} de 2023: ${fmt(total + NEGOCIADO_2023)} desde su creación`;
+    document.getElementById('meta').textContent = meta;
+  }
+
+  const ctx = document.getElementById('atraeChart').getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+  gradient.addColorStop(0, 'rgba(30, 111, 200, 0.30)');
+  gradient.addColorStop(1, 'rgba(30, 111, 200, 0.0)');
+
+  let vista = serie;
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Valor negociado ($M COP)',
+        data: [],
+        borderColor: '#0A1F5C',
+        borderWidth: 2.5,
+        fill: true,
+        backgroundColor: gradient,
+        cubicInterpolationMode: 'monotone',
+        pointRadius: 4,
+        pointBackgroundColor: '#0A1F5C',
+        pointBorderColor: '#FFFFFF',
+        pointBorderWidth: 1.5,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: '#1E6FC8',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0A1F5C',
+          titleColor: '#FFFFFF',
+          bodyColor: '#DCE6F5',
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            label: c => {
+              const d = vista[c.dataIndex];
+              return ['Valor negociado: ' + fmt(d.v),
+                      d.tipo === 'P' ? 'Dato publicado por la BMC' : 'Calculado con acumulados de la BMC'];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#6B7280', maxRotation: 0, autoSkip: true }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: '#E1E4EA' },
+          border: { display: false },
+          ticks: { color: '#6B7280', callback: v => '$' + v.toLocaleString('es-CO') + 'M' }
+        }
+      }
+    }
+  });
+
+  // r: '2024' | '2025' (año completo, 4 trimestres) | 'max' (todos los trimestres)
+  function rango(r) {
+    vista = r === 'max' ? serie : serie.filter(d => d.anio === Number(r));
+    chart.data.labels = vista.map(d => d.t);
+    chart.data.datasets[0].data = vista.map(d => d.v);
+    chart.update();
+    encabezado(vista, r);
+  }
+
+  document.getElementById('tfs').addEventListener('click', e => {
+    const b = e.target.closest('.tf-btn');
+    if (!b) return;
+    document.querySelectorAll('.tf-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    rango(b.dataset.r);
+  });
+
+  document.getElementById('ultimo-dato').textContent =
+    'Último dato: ' + DATOS.trimestres[DATOS.trimestres.length - 1].periodo;
+
+  // Descarga .xlsx generada en el navegador a partir del bloque JSON
+  function descargarXlsx() {
+    const fuentesTxt = ids => ids.join(', ');
+    const urlDe = ids => ids.map(id => DATOS.fuentes.find(f => f.id === id).url).join(' | ');
+
+    const hTrim = [['Periodo', 'Año', 'Valor negociado (M COP)', 'Tipo de dato', 'Cálculo', 'Fuentes (ver hoja Fuentes)', 'Enlaces']];
+    DATOS.trimestres.forEach(d => hTrim.push([d.periodo, d.anio, d.valor, d.tipo, d.calculo, fuentesTxt(d.fuentes), urlDe(d.fuentes)]));
+
+    const hAnio = [['Año', 'Valor negociado (M COP)', 'Operaciones realizadas', 'Nota', 'Fuentes (ver hoja Fuentes)', 'Enlaces']];
+    DATOS.anios.forEach(a => hAnio.push([a.anio, a.valor, a.operaciones == null ? 'No publicado' : a.operaciones, a.nota, fuentesTxt(a.fuentes), urlDe(a.fuentes)]));
+
+    const hFuentes = [['ID', 'Documento', 'Cifras que aporta', 'Enlace']];
+    DATOS.fuentes.forEach(f => hFuentes.push([f.id, f.documento, f.cifras, f.url]));
+
+    const hNotas = [[DATOS.titulo], ['Unidad: ' + DATOS.unidad], ['Elaborado: ' + DATOS.fecha_elaboracion], []];
+    DATOS.notas.forEach((n, i) => hNotas.push([(i + 1) + '. ' + n]));
+
+    const hoja = (filas, anchos) => {
+      const ws = XLSX.utils.aoa_to_sheet(filas);
+      ws['!cols'] = anchos.map(w => ({ wch: w }));
+      return ws;
+    };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, hoja(hTrim, [10, 6, 22, 12, 60, 14, 90]), 'Trimestral');
+    XLSX.utils.book_append_sheet(wb, hoja(hAnio, [6, 22, 22, 60, 14, 90]), 'Anual');
+    XLSX.utils.book_append_sheet(wb, hoja(hFuentes, [5, 55, 55, 110]), 'Fuentes');
+    XLSX.utils.book_append_sheet(wb, hoja(hNotas, [140]), 'Notas');
+
+    // Enlaces clicables en la hoja de fuentes
+    const wsF = wb.Sheets['Fuentes'];
+    DATOS.fuentes.forEach((f, i) => { const c = wsF['D' + (i + 2)]; if (c) c.l = { Target: f.url }; });
+
+    XLSX.writeFile(wb, 'atrae_valor_negociado.xlsx');
+  }
+  document.getElementById('descargar').addEventListener('click', descargarXlsx);
+
+  rango('max');
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1550 @@
+<title>IPAP frente al IPC</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  /* Layout: tarjeta Atra-e (borde navy, cifra grande, pestañas subrayadas) con gráfico de dos líneas. */
+  :root {
+    --bmc-navy: #0A1F5C;
+    --bmc-blue: #1E6FC8;
+    --bmc-blue-soft: rgba(30, 111, 200, 0.10);
+    --s-ipap: #1E4FA8;
+    --s-ipc: #D97706;
+    --bg: #F2F2F2;
+    --card: #FFFFFF;
+    --line: #E1E4EA;
+    --muted: #6B7280;
+    --up: #1E7A46;
+    --down: #B42318;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--bmc-navy);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    padding-block: 20px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    justify-content: center;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--bmc-navy);
+    border-radius: 10px;
+    padding: 24px;
+    width: 100%;
+    max-width: 800px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08);
+    min-width: 0;
+  }
+  .header-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+  .chart-title { font-size: 20px; font-weight: 700; margin: 6px 0 2px; line-height: 1.3; text-wrap: balance; }
+  .chart-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin: 8px 0 6px; }
+  .main-value { font-size: 34px; font-weight: 700; display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 10px; font-variant-numeric: tabular-nums; }
+  .who { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; display: flex; align-items: center; gap: 6px; }
+  .sw { width: 18px; height: 0; border-top: 3px solid var(--s-ipap); display: inline-block; }
+  .sw.ipc { border-top: 3px dashed var(--s-ipc); }
+  .unit { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .badge { font-size: 13px; padding: 3px 9px; border-radius: 6px; font-weight: 600; align-self: center; }
+  .badge.neutral { background: var(--bmc-blue-soft); color: var(--bmc-navy); }
+  .badge.est { background: rgba(180, 35, 24, 0.10); color: var(--down); }
+  .delta { font-size: 14px; font-weight: 600; align-self: center; color: var(--bmc-navy); background: var(--bmc-blue-soft); padding: 2px 8px; border-radius: 6px; }
+  .delta.up { color: var(--up); }
+  .delta.down { color: var(--down); }
+  .meta-info { font-size: 12px; color: var(--muted); margin: 10px 0 18px; line-height: 1.5; }
+  .controls { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .timeframes { display: flex; gap: 4px; overflow-x: auto; }
+  .tf-btn { background: transparent; border: none; border-bottom: 3px solid transparent; color: var(--muted); padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; white-space: nowrap; }
+  .tf-btn:hover { color: var(--bmc-blue); }
+  .tf-btn:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: 2px; }
+  .tf-btn.active { color: var(--bmc-navy); border-bottom-color: var(--bmc-blue); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+  .seg button { background: transparent; border: none; padding: 6px 12px; font: 600 12px inherit; font-family: inherit; color: var(--muted); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--bmc-navy); color: #fff; }
+  .seg button:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: -2px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 8px; align-items: center; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chart-container { position: relative; height: 340px; width: 100%; }
+  .footnote { font-size: 12px; color: var(--muted); margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+  .dl-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--bmc-blue); padding: 6px 12px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .dl-btn:hover { border-color: var(--bmc-blue); background: var(--bmc-blue-soft); }
+  .dl-btn:focus-visible { outline: 2px solid var(--bmc-blue); outline-offset: 2px; }
+  .dl-btn svg { width: 14px; height: 14px; }
+  .dl-msg { width: 100%; text-align: right; color: var(--down); }
+</style>
+
+<div class="card">
+  <div class="header-title">IPAP-BMC • Bolsa Mercantil de Colombia</div>
+  <h1 class="chart-title">Precios agropecuarios (IPAP) frente a la inflación (IPC)</h1>
+  <div class="chart-subtitle">Índice de Precios Agropecuarios de la BMC e Índice de Precios al Consumidor del DANE · mensual</div>
+
+  <div class="pair">
+    <div>
+      <div class="who"><i class="sw"></i>IPAP-BMC</div>
+      <div class="main-value"><span id="v-ipap">—</span><span class="unit">pts · base dic 2014</span><span id="d-ipap" class="delta"></span></div>
+    </div>
+    <div>
+      <div class="who"><i class="sw ipc"></i>IPC DANE</div>
+      <div class="main-value"><span id="v-ipc">—</span><span class="unit">pts · base dic 2018</span><span id="d-ipc" class="delta"></span></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><span id="badge" class="badge neutral"></span></div>
+  <div class="meta-info" id="meta"></div>
+
+  <div class="controls">
+    <div class="timeframes" id="tfs">
+      <button class="tf-btn" data-r="12" title="Últimos 12 meses">1A</button>
+      <button class="tf-btn" data-r="36" title="Últimos 3 años">3A</button>
+      <button class="tf-btn active" data-r="60" title="Últimos 5 años">5A</button>
+      <button class="tf-btn" data-r="120" title="Últimos 10 años">10A</button>
+      <button class="tf-btn" data-r="max" title="Toda la serie disponible">Máx.</button>
+    </div>
+    <div class="seg" id="seg" role="group" aria-label="Cómo comparar">
+      <button class="on" data-m="var" type="button" title="Variación frente al mismo mes del año anterior">Variación anual (%)</button>
+      <button data-m="idx" type="button" title="Ambos índices llevados a dic 2014 = 100">Índice (dic 2014 = 100)</button>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw"></i>IPAP-BMC</span>
+    <span><i class="sw ipc"></i>IPC DANE</span>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="chart" aria-label="Gráfico de líneas del IPAP-BMC y el IPC"></canvas>
+  </div>
+
+  <div class="footnote">
+    <span>Fuentes: Bolsa Mercantil de Colombia · DANE</span>
+    <span>·</span>
+    <span id="ultimo-dato"></span>
+    <button class="dl-btn" id="descargar" type="button" title="Descarga los datos de la gráfica con sus fuentes y notas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>
+      </svg>
+      Descargar datos (.xlsx)
+    </button>
+    <span class="dl-msg" id="dl-msg" hidden></span>
+  </div>
+</div>
+
+<!-- Datos de la gráfica. La gráfica y la descarga .xlsx leen de aquí. Para actualizar, agregar meses al final de "meses". -->
+<script type="application/json" id="datos">
+{
+ "titulo": "IPAP-BMC e IPC – Índice de Precios Agropecuarios de la Bolsa Mercantil frente al IPC del DANE",
+ "fecha_elaboracion": "2026-11-01",
+ "ultimo_dato": "sep. 2026",
+ "fuentes": [
+  {
+   "id": "F1",
+   "documento": "BMC – «Comparativo niveles IPAP por sector», Total agropecuario, ene-2012 a jul-2026 (archivo entregado por la BMC al DataLab Challenge)",
+   "url": "https://github.com/dchuertas/chagra-ipap-ninis/tree/main/data"
+  },
+  {
+   "id": "F2",
+   "documento": "BMC – Informes IPAP-BMC agosto y septiembre 2026",
+   "url": "https://www.bolsamercantil.com.co/estudios-economicos"
+  },
+  {
+   "id": "F3",
+   "documento": "DANE – IPC, índices serie de empalme, base dic 2018 = 100 (actualizado 7-oct-2026)",
+   "url": "https://www.dane.gov.co/files/operaciones/IPC/sep2026/anex-IPC-Indices-sep2026.xlsx"
+  },
+  {
+   "id": "F4",
+   "documento": "BMC – Metodología IPAP-BMC (base dic 2014 = 100)",
+   "url": "https://www.bolsamercantil.com.co/sites/default/files/2022-08/14.%20Metodolog%C3%ADa%20IPAP.pdf"
+  }
+ ],
+ "notas": [
+  "IPAP: niveles mensuales revisados de la BMC. Sep-2026 es provisional (254,74); ago-2026 es el definitivo derivado del informe de septiembre (250,43; el provisional publicado fue 254,29).",
+  "IPC: índice total del DANE. Oct-2026 aún no está publicado.",
+  "Los dos índices tienen bases distintas (IPAP dic 2014 = 100; IPC dic 2018 = 100). Por eso la gráfica los compara como variación anual o con ambos llevados a dic 2014 = 100.",
+  "Verificación: con estos niveles la variación anual del IPAP en sep-2026 es 5,85%; la BMC reporta 5,86%."
+ ],
+ "meses": [
+  {
+   "k": "2012-01",
+   "t": "ene 2012",
+   "ipap": 93.82,
+   "ipc": 76.75,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-02",
+   "t": "feb 2012",
+   "ipap": 94.04,
+   "ipc": 77.22,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-03",
+   "t": "mar 2012",
+   "ipap": 96.0,
+   "ipc": 77.31,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-04",
+   "t": "abr 2012",
+   "ipap": 96.18,
+   "ipc": 77.42,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-05",
+   "t": "may 2012",
+   "ipap": 96.49,
+   "ipc": 77.66,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-06",
+   "t": "jun 2012",
+   "ipap": 95.99,
+   "ipc": 77.72,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-07",
+   "t": "jul 2012",
+   "ipap": 95.41,
+   "ipc": 77.7,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-08",
+   "t": "ago 2012",
+   "ipap": 95.14,
+   "ipc": 77.73,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-09",
+   "t": "sep 2012",
+   "ipap": 96.9,
+   "ipc": 77.96,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-10",
+   "t": "oct 2012",
+   "ipap": 96.69,
+   "ipc": 78.08,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-11",
+   "t": "nov 2012",
+   "ipap": 92.44,
+   "ipc": 77.98,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2012-12",
+   "t": "dic 2012",
+   "ipap": 91.52,
+   "ipc": 78.05,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-01",
+   "t": "ene 2013",
+   "ipap": 89.72,
+   "ipc": 78.28,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-02",
+   "t": "feb 2013",
+   "ipap": 91.22,
+   "ipc": 78.63,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-03",
+   "t": "mar 2013",
+   "ipap": 93.38,
+   "ipc": 78.79,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-04",
+   "t": "abr 2013",
+   "ipap": 94.85,
+   "ipc": 78.99,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-05",
+   "t": "may 2013",
+   "ipap": 95.74,
+   "ipc": 79.21,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-06",
+   "t": "jun 2013",
+   "ipap": 94.31,
+   "ipc": 79.39,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-07",
+   "t": "jul 2013",
+   "ipap": 93.64,
+   "ipc": 79.43,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-08",
+   "t": "ago 2013",
+   "ipap": 91.2,
+   "ipc": 79.5,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-09",
+   "t": "sep 2013",
+   "ipap": 89.24,
+   "ipc": 79.73,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-10",
+   "t": "oct 2013",
+   "ipap": 88.39,
+   "ipc": 79.52,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-11",
+   "t": "nov 2013",
+   "ipap": 88.45,
+   "ipc": 79.35,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2013-12",
+   "t": "dic 2013",
+   "ipap": 92.02,
+   "ipc": 79.56,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-01",
+   "t": "ene 2014",
+   "ipap": 93.14,
+   "ipc": 79.95,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-02",
+   "t": "feb 2014",
+   "ipap": 93.75,
+   "ipc": 80.45,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-03",
+   "t": "mar 2014",
+   "ipap": 96.48,
+   "ipc": 80.77,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-04",
+   "t": "abr 2014",
+   "ipap": 99.48,
+   "ipc": 81.14,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-05",
+   "t": "may 2014",
+   "ipap": 99.28,
+   "ipc": 81.53,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-06",
+   "t": "jun 2014",
+   "ipap": 98.52,
+   "ipc": 81.61,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-07",
+   "t": "jul 2014",
+   "ipap": 97.39,
+   "ipc": 81.73,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-08",
+   "t": "ago 2014",
+   "ipap": 98.14,
+   "ipc": 81.9,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-09",
+   "t": "sep 2014",
+   "ipap": 97.42,
+   "ipc": 82.01,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-10",
+   "t": "oct 2014",
+   "ipap": 97.92,
+   "ipc": 82.14,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-11",
+   "t": "nov 2014",
+   "ipap": 99.14,
+   "ipc": 82.25,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2014-12",
+   "t": "dic 2014",
+   "ipap": 99.13,
+   "ipc": 82.47,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-01",
+   "t": "ene 2015",
+   "ipap": 104.15,
+   "ipc": 83,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-02",
+   "t": "feb 2015",
+   "ipap": 103.11,
+   "ipc": 83.96,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-03",
+   "t": "mar 2015",
+   "ipap": 105.34,
+   "ipc": 84.45,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-04",
+   "t": "abr 2015",
+   "ipap": 106.77,
+   "ipc": 84.9,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-05",
+   "t": "may 2015",
+   "ipap": 105.81,
+   "ipc": 85.12,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-06",
+   "t": "jun 2015",
+   "ipap": 103.2,
+   "ipc": 85.21,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-07",
+   "t": "jul 2015",
+   "ipap": 103.11,
+   "ipc": 85.37,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-08",
+   "t": "ago 2015",
+   "ipap": 104.08,
+   "ipc": 85.78,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-09",
+   "t": "sep 2015",
+   "ipap": 107.86,
+   "ipc": 86.39,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-10",
+   "t": "oct 2015",
+   "ipap": 110.69,
+   "ipc": 86.98,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-11",
+   "t": "nov 2015",
+   "ipap": 112.5,
+   "ipc": 87.51,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2015-12",
+   "t": "dic 2015",
+   "ipap": 115.54,
+   "ipc": 88.05,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-01",
+   "t": "ene 2016",
+   "ipap": 122.58,
+   "ipc": 89.19,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-02",
+   "t": "feb 2016",
+   "ipap": 130.04,
+   "ipc": 90.33,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-03",
+   "t": "mar 2016",
+   "ipap": 123.23,
+   "ipc": 91.18,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-04",
+   "t": "abr 2016",
+   "ipap": 129.4,
+   "ipc": 91.63,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-05",
+   "t": "may 2016",
+   "ipap": 126.39,
+   "ipc": 92.1,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-06",
+   "t": "jun 2016",
+   "ipap": 129.64,
+   "ipc": 92.54,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-07",
+   "t": "jul 2016",
+   "ipap": 132.69,
+   "ipc": 93.02,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-08",
+   "t": "ago 2016",
+   "ipap": 126.58,
+   "ipc": 92.73,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-09",
+   "t": "sep 2016",
+   "ipap": 124.44,
+   "ipc": 92.68,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-10",
+   "t": "oct 2016",
+   "ipap": 123.14,
+   "ipc": 92.62,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-11",
+   "t": "nov 2016",
+   "ipap": 119.13,
+   "ipc": 92.73,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2016-12",
+   "t": "dic 2016",
+   "ipap": 121.51,
+   "ipc": 93.11,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-01",
+   "t": "ene 2017",
+   "ipap": 120.68,
+   "ipc": 94.07,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-02",
+   "t": "feb 2017",
+   "ipap": 137.65,
+   "ipc": 95.01,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-03",
+   "t": "mar 2017",
+   "ipap": 124.12,
+   "ipc": 95.46,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-04",
+   "t": "abr 2017",
+   "ipap": 126.99,
+   "ipc": 95.91,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-05",
+   "t": "may 2017",
+   "ipap": 127.19,
+   "ipc": 96.12,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-06",
+   "t": "jun 2017",
+   "ipap": 127.41,
+   "ipc": 96.23,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-07",
+   "t": "jul 2017",
+   "ipap": 124.43,
+   "ipc": 96.18,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-08",
+   "t": "ago 2017",
+   "ipap": 124.95,
+   "ipc": 96.32,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-09",
+   "t": "sep 2017",
+   "ipap": 125.1,
+   "ipc": 96.36,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-10",
+   "t": "oct 2017",
+   "ipap": 125.29,
+   "ipc": 96.37,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-11",
+   "t": "nov 2017",
+   "ipap": 116.83,
+   "ipc": 96.55,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2017-12",
+   "t": "dic 2017",
+   "ipap": 117.15,
+   "ipc": 96.92,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-01",
+   "t": "ene 2018",
+   "ipap": 119.75,
+   "ipc": 97.53,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-02",
+   "t": "feb 2018",
+   "ipap": 120.95,
+   "ipc": 98.22,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-03",
+   "t": "mar 2018",
+   "ipap": 123.54,
+   "ipc": 98.45,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-04",
+   "t": "abr 2018",
+   "ipap": 127.29,
+   "ipc": 98.91,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-05",
+   "t": "may 2018",
+   "ipap": 126.65,
+   "ipc": 99.16,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-06",
+   "t": "jun 2018",
+   "ipap": 126.22,
+   "ipc": 99.31,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-07",
+   "t": "jul 2018",
+   "ipap": 123.65,
+   "ipc": 99.18,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-08",
+   "t": "ago 2018",
+   "ipap": 123.41,
+   "ipc": 99.3,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-09",
+   "t": "sep 2018",
+   "ipap": 122.86,
+   "ipc": 99.47,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-10",
+   "t": "oct 2018",
+   "ipap": 123.9,
+   "ipc": 99.59,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-11",
+   "t": "nov 2018",
+   "ipap": 122.77,
+   "ipc": 99.7,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2018-12",
+   "t": "dic 2018",
+   "ipap": 123.94,
+   "ipc": 100,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-01",
+   "t": "ene 2019",
+   "ipap": 123.66,
+   "ipc": 100.6,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-02",
+   "t": "feb 2019",
+   "ipap": 125.67,
+   "ipc": 101.18,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-03",
+   "t": "mar 2019",
+   "ipap": 129.57,
+   "ipc": 101.62,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-04",
+   "t": "abr 2019",
+   "ipap": 132.56,
+   "ipc": 102.12,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-05",
+   "t": "may 2019",
+   "ipap": 133.72,
+   "ipc": 102.44,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-06",
+   "t": "jun 2019",
+   "ipap": 137.35,
+   "ipc": 102.71,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-07",
+   "t": "jul 2019",
+   "ipap": 136.4,
+   "ipc": 102.94,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-08",
+   "t": "ago 2019",
+   "ipap": 133.64,
+   "ipc": 103.03,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-09",
+   "t": "sep 2019",
+   "ipap": 135.58,
+   "ipc": 103.26,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-10",
+   "t": "oct 2019",
+   "ipap": 136.85,
+   "ipc": 103.43,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-11",
+   "t": "nov 2019",
+   "ipap": 135.84,
+   "ipc": 103.54,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2019-12",
+   "t": "dic 2019",
+   "ipap": 134.44,
+   "ipc": 103.8,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-01",
+   "t": "ene 2020",
+   "ipap": 134.79,
+   "ipc": 104.24,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-02",
+   "t": "feb 2020",
+   "ipap": 134.87,
+   "ipc": 104.94,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-03",
+   "t": "mar 2020",
+   "ipap": 138.39,
+   "ipc": 105.53,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-04",
+   "t": "abr 2020",
+   "ipap": 142.14,
+   "ipc": 105.7,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-05",
+   "t": "may 2020",
+   "ipap": 142.55,
+   "ipc": 105.36,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-06",
+   "t": "jun 2020",
+   "ipap": 141.31,
+   "ipc": 104.97,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-07",
+   "t": "jul 2020",
+   "ipap": 138.16,
+   "ipc": 104.97,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-08",
+   "t": "ago 2020",
+   "ipap": 137.42,
+   "ipc": 104.96,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-09",
+   "t": "sep 2020",
+   "ipap": 139.34,
+   "ipc": 105.29,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-10",
+   "t": "oct 2020",
+   "ipap": 139.31,
+   "ipc": 105.23,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-11",
+   "t": "nov 2020",
+   "ipap": 140.44,
+   "ipc": 105.08,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2020-12",
+   "t": "dic 2020",
+   "ipap": 143.61,
+   "ipc": 105.48,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-01",
+   "t": "ene 2021",
+   "ipap": 145.49,
+   "ipc": 105.91,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-02",
+   "t": "feb 2021",
+   "ipap": 150.17,
+   "ipc": 106.58,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-03",
+   "t": "mar 2021",
+   "ipap": 153.66,
+   "ipc": 107.12,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-04",
+   "t": "abr 2021",
+   "ipap": 159.8,
+   "ipc": 107.76,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-05",
+   "t": "may 2021",
+   "ipap": 168.29,
+   "ipc": 108.84,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-06",
+   "t": "jun 2021",
+   "ipap": 168.08,
+   "ipc": 108.78,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-07",
+   "t": "jul 2021",
+   "ipap": 168.99,
+   "ipc": 109.14,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-08",
+   "t": "ago 2021",
+   "ipap": 169.33,
+   "ipc": 109.62,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-09",
+   "t": "sep 2021",
+   "ipap": 172.95,
+   "ipc": 110.04,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-10",
+   "t": "oct 2021",
+   "ipap": 177.98,
+   "ipc": 110.06,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-11",
+   "t": "nov 2021",
+   "ipap": 182.82,
+   "ipc": 110.6,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2021-12",
+   "t": "dic 2021",
+   "ipap": 186.18,
+   "ipc": 111.41,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-01",
+   "t": "ene 2022",
+   "ipap": 193.44,
+   "ipc": 113.26,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-02",
+   "t": "feb 2022",
+   "ipap": 202.52,
+   "ipc": 115.11,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-03",
+   "t": "mar 2022",
+   "ipap": 211.15,
+   "ipc": 116.26,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-04",
+   "t": "abr 2022",
+   "ipap": 221.71,
+   "ipc": 117.71,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-05",
+   "t": "may 2022",
+   "ipap": 230.51,
+   "ipc": 118.7,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-06",
+   "t": "jun 2022",
+   "ipap": 231.61,
+   "ipc": 119.31,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-07",
+   "t": "jul 2022",
+   "ipap": 223.98,
+   "ipc": 120.27,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-08",
+   "t": "ago 2022",
+   "ipap": 224.2,
+   "ipc": 121.5,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-09",
+   "t": "sep 2022",
+   "ipap": 220.84,
+   "ipc": 122.63,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-10",
+   "t": "oct 2022",
+   "ipap": 225.16,
+   "ipc": 123.51,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-11",
+   "t": "nov 2022",
+   "ipap": 232.31,
+   "ipc": 124.46,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2022-12",
+   "t": "dic 2022",
+   "ipap": 240.81,
+   "ipc": 126.03,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-01",
+   "t": "ene 2023",
+   "ipap": 248.52,
+   "ipc": 128.27,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-02",
+   "t": "feb 2023",
+   "ipap": 250.87,
+   "ipc": 130.4,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-03",
+   "t": "mar 2023",
+   "ipap": 250.51,
+   "ipc": 131.77,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-04",
+   "t": "abr 2023",
+   "ipap": 244.52,
+   "ipc": 132.8,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-05",
+   "t": "may 2023",
+   "ipap": 240.68,
+   "ipc": 133.38,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-06",
+   "t": "jun 2023",
+   "ipap": 237.94,
+   "ipc": 133.78,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-07",
+   "t": "jul 2023",
+   "ipap": 238.03,
+   "ipc": 134.45,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-08",
+   "t": "ago 2023",
+   "ipap": 231.71,
+   "ipc": 135.39,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-09",
+   "t": "sep 2023",
+   "ipap": 229.09,
+   "ipc": 136.11,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-10",
+   "t": "oct 2023",
+   "ipap": 226.37,
+   "ipc": 136.45,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-11",
+   "t": "nov 2023",
+   "ipap": 224.57,
+   "ipc": 137.09,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2023-12",
+   "t": "dic 2023",
+   "ipap": 226.81,
+   "ipc": 137.72,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-01",
+   "t": "ene 2024",
+   "ipap": 225.0,
+   "ipc": 138.98,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-02",
+   "t": "feb 2024",
+   "ipap": 224.07,
+   "ipc": 140.49,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-03",
+   "t": "mar 2024",
+   "ipap": 230.9,
+   "ipc": 141.48,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-04",
+   "t": "abr 2024",
+   "ipap": 232.49,
+   "ipc": 142.32,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-05",
+   "t": "may 2024",
+   "ipap": 236.34,
+   "ipc": 142.92,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-06",
+   "t": "jun 2024",
+   "ipap": 238.64,
+   "ipc": 143.38,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-07",
+   "t": "jul 2024",
+   "ipap": 240.65,
+   "ipc": 143.67,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-08",
+   "t": "ago 2024",
+   "ipap": 230.33,
+   "ipc": 143.67,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-09",
+   "t": "sep 2024",
+   "ipap": 229.93,
+   "ipc": 144.02,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-10",
+   "t": "oct 2024",
+   "ipap": 228.4,
+   "ipc": 143.83,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-11",
+   "t": "nov 2024",
+   "ipap": 226.79,
+   "ipc": 144.22,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2024-12",
+   "t": "dic 2024",
+   "ipap": 230.19,
+   "ipc": 144.88,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-01",
+   "t": "ene 2025",
+   "ipap": 232.07,
+   "ipc": 146.24,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-02",
+   "t": "feb 2025",
+   "ipap": 229.75,
+   "ipc": 147.9,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-03",
+   "t": "mar 2025",
+   "ipap": 231.59,
+   "ipc": 148.68,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-04",
+   "t": "abr 2025",
+   "ipap": 234.1,
+   "ipc": 149.66,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-05",
+   "t": "may 2025",
+   "ipap": 233.67,
+   "ipc": 150.14,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-06",
+   "t": "jun 2025",
+   "ipap": 234.2,
+   "ipc": 150.3,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-07",
+   "t": "jul 2025",
+   "ipap": 236.09,
+   "ipc": 150.71,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-08",
+   "t": "ago 2025",
+   "ipap": 238.49,
+   "ipc": 150.99,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-09",
+   "t": "sep 2025",
+   "ipap": 240.65,
+   "ipc": 151.48,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-10",
+   "t": "oct 2025",
+   "ipap": 243.62,
+   "ipc": 151.76,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-11",
+   "t": "nov 2025",
+   "ipap": 238.98,
+   "ipc": 151.87,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2025-12",
+   "t": "dic 2025",
+   "ipap": 243.25,
+   "ipc": 152.27,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-01",
+   "t": "ene 2026",
+   "ipap": 246.42,
+   "ipc": 154.07,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-02",
+   "t": "feb 2026",
+   "ipap": 250.62,
+   "ipc": 155.73,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-03",
+   "t": "mar 2026",
+   "ipap": 256.72,
+   "ipc": 156.94,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-04",
+   "t": "abr 2026",
+   "ipap": 255.47,
+   "ipc": 158.17,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-05",
+   "t": "may 2026",
+   "ipap": 254.03,
+   "ipc": 158.91,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-06",
+   "t": "jun 2026",
+   "ipap": 253.02,
+   "ipc": 159.53,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-07",
+   "t": "jul 2026",
+   "ipap": 251.18,
+   "ipc": 159.79,
+   "estado": "Revisado"
+  },
+  {
+   "k": "2026-08",
+   "t": "ago 2026",
+   "ipap": 250.43,
+   "ipc": 160.42,
+   "estado": "Definitivo (derivado del informe de sep-2026)"
+  },
+  {
+   "k": "2026-09",
+   "t": "sep 2026",
+   "ipap": 254.74,
+   "ipc": 161,
+   "estado": "Provisional"
+  }
+ ]
+}
+</script>
+
+<script>
+  const DATOS = JSON.parse(document.getElementById('datos').textContent);
+  const M = DATOS.meses;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const n2 = (x, d = 2) => x.toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const pct = (x, d = 1) => (x >= 0 ? '+' : '') + (x * 100).toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
+  const pp = x => (x >= 0 ? '+' : '') + x.toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' pp';
+
+  // Derivados: variación anual y rebase a dic 2014 = 100
+  const i14 = M.findIndex(m => m.k === '2014-12');
+  M.forEach((m, i) => {
+    const a = M[i - 12];
+    m.vIpap = a ? m.ipap / a.ipap - 1 : null;
+    m.vIpc = a && m.ipc != null && a.ipc != null ? m.ipc / a.ipc - 1 : null;
+    m.rIpap = m.ipap / M[i14].ipap * 100;
+    m.rIpc = m.ipc != null ? m.ipc / M[i14].ipc * 100 : null;
+  });
+  const ult = M[M.length - 1];
+
+  // Encabezado: último dato de cada índice
+  document.getElementById('v-ipap').textContent = n2(ult.ipap);
+  document.getElementById('v-ipc').textContent = n2(ult.ipc);
+  const setD = (id, v) => { const e = document.getElementById(id); e.textContent = pct(v) + ' anual'; e.className = 'delta'; };
+  setD('d-ipap', ult.vIpap); setD('d-ipc', ult.vIpc);
+  const badge = document.getElementById('badge');
+  badge.textContent = ult.t + (ult.estado === 'Provisional' ? ' · IPAP provisional' : '');
+  badge.className = 'badge ' + (ult.estado === 'Provisional' ? 'est' : 'neutral');
+  document.getElementById('ultimo-dato').textContent = 'Último dato: ' + DATOS.ultimo_dato;
+
+  function corr(a, b) {
+    const n = a.length, ma = a.reduce((s, x) => s + x, 0) / n, mb = b.reduce((s, x) => s + x, 0) / n;
+    let sab = 0, sa = 0, sb = 0;
+    for (let i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); sa += (a[i] - ma) ** 2; sb += (b[i] - mb) ** 2; }
+    return sab / Math.sqrt(sa * sb);
+  }
+
+  let modo = 'var', rango = '60', vista = [];
+  const ctx = document.getElementById('chart').getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [
+      { label: 'IPAP-BMC', data: [], borderColor: css('--s-ipap'), borderWidth: 2, pointRadius: 0, pointHoverRadius: 5,
+        pointHoverBackgroundColor: css('--s-ipap'), pointHoverBorderColor: '#FFFFFF', pointHoverBorderWidth: 2, tension: 0.25, spanGaps: false },
+      { label: 'IPC DANE', data: [], borderColor: css('--s-ipc'), borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 5,
+        pointHoverBackgroundColor: css('--s-ipc'), pointHoverBorderColor: '#FFFFFF', pointHoverBorderWidth: 2, tension: 0.25, spanGaps: false }
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0A1F5C', titleColor: '#FFFFFF', bodyColor: '#DCE6F5', padding: 12, boxPadding: 4, usePointStyle: true,
+          callbacks: {
+            title: items => vista[items[0].dataIndex].t,
+            label: c => {
+              const d = vista[c.dataIndex], ip = c.datasetIndex === 0;
+              if (modo === 'var') {
+                const v = ip ? d.vIpap : d.vIpc;
+                return `${c.dataset.label}: ${v == null ? 'sin dato' : pct(v)} (nivel ${n2(ip ? d.ipap : d.ipc)})`;
+              }
+              const v = ip ? d.rIpap : d.rIpc;
+              return `${c.dataset.label}: ${v == null ? 'sin dato' : n2(v, 1)} (nivel original ${n2(ip ? d.ipap : d.ipc)})`;
+            },
+            afterBody: items => {
+              const d = vista[items[0].dataIndex], out = [];
+              if (d.vIpap != null && d.vIpc != null) out.push('Brecha anual IPAP − IPC: ' + pp((d.vIpap - d.vIpc) * 100));
+              if (d.estado !== 'Revisado') out.push('IPAP: ' + d.estado.toLowerCase());
+              return out;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6B7280', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+        y: { grid: { color: c => (modo === 'var' && c.tick.value === 0) ? '#9CA3AF' : '#E1E4EA', lineWidth: c => (modo === 'var' && c.tick.value === 0) ? 1.5 : 1 },
+             border: { display: false },
+             ticks: { color: '#6B7280', callback: v => modo === 'var' ? (v * 100).toLocaleString('es-CO') + '%' : v.toLocaleString('es-CO') } }
+      }
+    }
+  });
+
+  function render() {
+    // En variación anual el primer año no tiene comparación, así que Máx. arranca en ene 2013
+    const base = modo === 'var' ? M.filter(m => m.vIpap != null) : M;
+    vista = rango === 'max' ? base : base.slice(-Number(rango));
+    chart.data.labels = vista.map(d => d.t);
+    chart.data.datasets[0].data = vista.map(d => modo === 'var' ? d.vIpap : d.rIpap);
+    chart.data.datasets[1].data = vista.map(d => modo === 'var' ? d.vIpc : d.rIpc);
+    chart.update();
+
+    const ok = vista.filter(d => d.vIpap != null && d.vIpc != null);
+    const r = ok.length > 2 ? corr(ok.map(d => d.vIpap), ok.map(d => d.vIpc)) : null;
+    const brecha = ok.length ? ok.reduce((s, d) => s + (d.vIpap - d.vIpc), 0) / ok.length * 100 : null;
+    const maxI = vista.reduce((a, d) => (d.vIpap ?? -9) > (a.vIpap ?? -9) ? d : a);
+    const f = vista[0], l = vista[vista.length - 1];
+    const acI = l.ipap / f.ipap - 1, acC = l.ipc / f.ipc - 1;
+    document.getElementById('meta').textContent =
+      `${f.t} → ${l.t}: IPAP ${pct(acI)} · IPC ${pct(acC)}` +
+      (r != null ? ` · Correlación de las variaciones anuales: ${n2(r * 100, 0)}%` : '') +
+      (brecha != null ? ` · Brecha promedio IPAP − IPC: ${pp(brecha)}` : '') +
+      (maxI.vIpap != null ? ` · Mayor alza anual del IPAP: ${pct(maxI.vIpap)} (${maxI.t})` : '');
+  }
+
+  document.getElementById('tfs').addEventListener('click', e => {
+    const b = e.target.closest('.tf-btn'); if (!b) return;
+    document.querySelectorAll('.tf-btn').forEach(x => x.classList.toggle('active', x === b));
+    rango = b.dataset.r; render();
+  });
+  document.getElementById('seg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    document.querySelectorAll('#seg button').forEach(x => x.classList.toggle('on', x === b));
+    modo = b.dataset.m; render();
+  });
+
+  function descargarXlsx() {
+    const msg = document.getElementById('dl-msg');
+    if (typeof XLSX === 'undefined') { msg.textContent = 'No se pudo cargar la librería de Excel. Revisa tu conexión e inténtalo de nuevo.'; msg.hidden = false; return; }
+    msg.hidden = true;
+    const h = [['Mes', 'IPAP-BMC (dic 2014 = 100)', 'Estado IPAP', 'IPC DANE (dic 2018 = 100)', 'IPAP var. anual', 'IPC var. anual', 'Brecha (pp)', 'IPAP rebasado dic 2014', 'IPC rebasado dic 2014']];
+    M.forEach(d => h.push([d.t, d.ipap, d.estado, d.ipc, d.vIpap, d.vIpc, d.vIpap != null && d.vIpc != null ? (d.vIpap - d.vIpc) * 100 : null, d.rIpap, d.rIpc]));
+    const hF = [['ID', 'Documento', 'Enlace']]; DATOS.fuentes.forEach(f => hF.push([f.id, f.documento, f.url]));
+    const hN = [[DATOS.titulo], ['Elaborado: ' + DATOS.fecha_elaboracion], []]; DATOS.notas.forEach((n, i) => hN.push([(i + 1) + '. ' + n]));
+    const hoja = (f, w) => { const ws = XLSX.utils.aoa_to_sheet(f); ws['!cols'] = w.map(x => ({ wch: x })); return ws; };
+    const wb = XLSX.utils.book_new();
+    const ws = hoja(h, [10, 20, 16, 20, 14, 14, 12, 18, 18]);
+    for (let r = 2; r <= M.length + 1; r++) ['E', 'F'].forEach(c => { if (ws[c + r]) ws[c + r].z = '0.0%'; });
+    XLSX.utils.book_append_sheet(wb, ws, 'IPAP vs IPC');
+    XLSX.utils.book_append_sheet(wb, hoja(hF, [5, 110, 100]), 'Fuentes');
+    XLSX.utils.book_append_sheet(wb, hoja(hN, [150]), 'Notas');
+    const wsF = wb.Sheets['Fuentes']; DATOS.fuentes.forEach((f, i) => { const c = wsF['C' + (i + 2)]; if (c) c.l = { Target: f.url }; });
+    XLSX.writeFile(wb, 'ipap_vs_ipc.xlsx');
+  }
+  document.getElementById('descargar').addEventListener('click', descargarXlsx);
+
+  render();
+</script>

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Econexus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy-deep: #051655;
+      --navy: #0A1F5C;
+      --navy-band: #0B2475;
+      --sky: #1AA7F0;
+      --sky-soft: #8FD3F7;
+      --bar: #1C4FC0;
+      --sub: #C9D3EA;
+      --bg: #F2F2F2;
+      --muted: #6B7280;
+      --line: #E1E4EA;
+      --font: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      --brand: "Montserrat", "Segoe UI", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body { background: var(--bg); color: var(--navy); font-family: var(--font); }
+
+    /* ---------------- Encabezado ---------------- */
+    .hero {
+      position: relative; overflow: hidden;
+      background:
+        radial-gradient(120% 140% at 85% 0%, rgba(40, 90, 210, 0.35) 0%, rgba(40, 90, 210, 0) 55%),
+        linear-gradient(100deg, var(--navy-deep) 0%, #08206E 55%, var(--navy-band) 100%);
+      color: #FFFFFF;
+    }
+    .hero-inner {
+      position: relative; z-index: 1;
+      max-width: 1440px; margin: 0 auto;
+      padding: 34px max(24px, env(safe-area-inset-right, 0px)) 0 max(24px, env(safe-area-inset-left, 0px));
+    }
+    .brand { display: flex; align-items: center; gap: 26px; }
+    .brand-logo { width: 92px; height: 82px; flex: none; }
+    .brand-sep { width: 2px; align-self: stretch; background: rgba(255, 255, 255, 0.85); border-radius: 1px; }
+    .brand-name { font-family: var(--brand); font-weight: 800; font-size: 64px; line-height: 1; letter-spacing: -1px; margin: 0; }
+    .brand-name span { color: var(--sky); }
+    .brand-sub { font-size: 21px; color: var(--sub); margin: 10px 0 0; font-weight: 400; }
+
+    .deco { position: absolute; right: 0; bottom: 0; height: 100%; width: min(46%, 700px); z-index: 0; pointer-events: none; }
+
+    .tabs { display: flex; gap: 10px; margin: 28px 0 0 118px; overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      font-family: var(--font); font-size: 17px; font-weight: 700; letter-spacing: 0.2px;
+      color: #FFFFFF; background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.06); border-bottom: none;
+      border-radius: 10px 10px 0 0; padding: 14px 0 15px; min-width: 150px; cursor: pointer;
+      position: relative; transition: background .15s ease;
+    }
+    .tab:hover { background: rgba(255, 255, 255, 0.14); }
+    .tab[aria-selected="true"] { background: #FFFFFF; color: var(--navy); }
+    .tab[aria-selected="true"]::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--sky);
+    }
+    .tab:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+
+    /* ---------------- Tableros ---------------- */
+    :root { --gap: 16px; }
+    main { max-width: 1440px; margin: 0 auto; padding: var(--gap) 24px 28px; }
+    .panel { display: grid; gap: var(--gap); align-items: start; }
+    .panel[hidden] { display: none; }
+    /* Mercop e IPAP: 1 a la izquierda ocupando dos filas, 2 y 3 apilados a la derecha.
+       El reparto de columnas lo ajusta el script para que ambos lados midan lo mismo. */
+    .layout-side { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "a b" "a c"; }
+    /* Atra-e: 1 y 2 lado a lado con la misma altura, 3 a todo lo ancho */
+    .layout-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "a b" "c c"; }
+    /* MCP: 1, 2 y 3 apilados a todo lo ancho */
+    .layout-stack { grid-template-columns: minmax(0, 1fr); grid-template-areas: "a" "b" "c"; }
+    .slot-a { grid-area: a; } .slot-b { grid-area: b; } .slot-c { grid-area: c; }
+
+    .frame { position: relative; min-width: 0; border-radius: 10px; box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08); background: transparent; }
+    .frame iframe { display: block; width: 100%; height: 520px; border: 0; background: transparent; border-radius: 10px; }
+    .frame .loading {
+      position: absolute; inset: 0; border-radius: 10px; background: #FFFFFF; border: 1px solid var(--line);
+      border-top: 4px solid var(--navy); display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 13px;
+    }
+    .frame.ready .loading { display: none; }
+
+    footer { text-align: center; font-size: 12px; color: var(--muted); padding: 0 16px 28px; }
+
+    @media (max-width: 1100px) {
+      :root { --gap: 12px; }
+      main { padding-left: 16px; padding-right: 16px; }
+      .deco { opacity: 0.45; }
+    }
+    /* Celular: todo en una sola columna, cada tablero con su altura natural */
+    @media (max-width: 720px) {
+      :root { --gap: 12px; }
+      .hero-inner { padding-top: 22px; }
+      .brand { gap: 14px; }
+      .brand-logo { width: 54px; height: 48px; }
+      .brand-name { font-size: 38px; }
+      .brand-sub { font-size: 14px; margin-top: 6px; }
+      .tabs { margin-left: 0; gap: 6px; margin-top: 20px; }
+      .tab { min-width: 0; padding: 11px 16px 12px; font-size: 14px; flex: 1 0 auto; }
+      .deco { display: none; }
+      main { padding: 12px 12px 16px; }
+      .layout-side, .layout-top, .layout-stack { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: "a" "b" "c"; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <svg class="deco" viewBox="0 0 700 290" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
+    <defs>
+      <linearGradient id="gBar" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#2A64E0" stop-opacity="0.75"/>
+        <stop offset="1" stop-color="#1C4FC0" stop-opacity="0.05"/>
+      </linearGradient>
+      <linearGradient id="gLine" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#2F6FE0" stop-opacity="0"/>
+        <stop offset="0.35" stop-color="#2F6FE0" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#3B82F6" stop-opacity="0.9"/>
+      </linearGradient>
+    </defs>
+    <path d="M60 290 C 220 120, 430 40, 700 20 L 700 290 Z" fill="#0E2C8C" opacity="0.35"/>
+    <g fill="url(#gBar)">
+      <rect x="210" y="225" width="30" height="65" rx="3"/>
+      <rect x="256" y="220" width="30" height="70" rx="3"/>
+      <rect x="302" y="208" width="30" height="82" rx="3"/>
+      <rect x="348" y="192" width="30" height="98" rx="3"/>
+      <rect x="394" y="210" width="30" height="80" rx="3"/>
+      <rect x="440" y="172" width="30" height="118" rx="3"/>
+      <rect x="486" y="148" width="30" height="142" rx="3"/>
+      <rect x="532" y="188" width="30" height="102" rx="3"/>
+      <rect x="578" y="156" width="30" height="134" rx="3"/>
+      <rect x="624" y="118" width="30" height="172" rx="3"/>
+      <rect x="670" y="86" width="30" height="204" rx="3"/>
+    </g>
+    <polyline points="250,165 345,118 440,85 505,108 560,92 640,48 690,10" fill="none" stroke="url(#gLine)" stroke-width="3" stroke-linejoin="round"/>
+    <g fill="#2F6FE0">
+      <circle cx="250" cy="165" r="7"/><circle cx="440" cy="85" r="8"/><circle cx="505" cy="108" r="8"/><circle cx="640" cy="48" r="8"/>
+    </g>
+  </svg>
+
+  <div class="hero-inner">
+    <div class="brand">
+      <svg class="brand-logo" viewBox="0 0 92 82" aria-hidden="true">
+        <line x1="12" y1="40" x2="62" y2="16" stroke="#1AA7F0" stroke-width="3" stroke-dasharray="6 5" stroke-linecap="round"/>
+        <circle cx="12" cy="40" r="8" fill="#1AA7F0"/>
+        <circle cx="42" cy="26" r="8" fill="#1AA7F0"/>
+        <circle cx="74" cy="12" r="9" fill="#1AA7F0"/>
+        <rect x="2" y="54" width="20" height="26" rx="10" fill="#FFFFFF"/>
+        <rect x="32" y="42" width="20" height="38" rx="10" fill="#FFFFFF"/>
+        <rect x="64" y="30" width="20" height="50" rx="10" fill="#FFFFFF"/>
+      </svg>
+      <div class="brand-sep" aria-hidden="true"></div>
+      <div>
+        <h1 class="brand-name">Econ<span>exus</span></h1>
+        <p class="brand-sub">Datos de la Bolsa Mercantil, conectados</p>
+      </div>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Tableros">
+      <button class="tab" role="tab" id="tab-mercop" data-panel="mercop" aria-controls="mercop" aria-selected="true">MERCOP</button>
+      <button class="tab" role="tab" id="tab-mcp" data-panel="mcp" aria-controls="mcp" aria-selected="false">MCP</button>
+      <button class="tab" role="tab" id="tab-atrae" data-panel="atrae" aria-controls="atrae" aria-selected="false">Atra-e</button>
+      <button class="tab" role="tab" id="tab-ipap" data-panel="ipap" aria-controls="ipap" aria-selected="false">IPAP</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- MERCOP: 1 mercop_mapa · 2 mercop_grafico · 3 mercop_pastel -->
+  <section class="panel layout-side" id="mercop" role="tabpanel" aria-labelledby="tab-mercop">
+    <div class="frame slot-a" data-src="mercop_mapa"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-b" data-src="mercop_grafico"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-c" data-src="mercop_pastel"><div class="loading">Cargando tablero…</div></div>
+  </section>
+
+  <!-- MCP: 1 mcp_eficiencia · 2 mcp_riesgos · 3 mcp_valor_negociado -->
+  <section class="panel layout-stack" id="mcp" role="tabpanel" aria-labelledby="tab-mcp" hidden>
+    <div class="frame slot-a" data-src="mcp_eficiencia"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-b" data-src="mcp_riesgos"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-c" data-src="mcp_valor_negociado"><div class="loading">Cargando tablero…</div></div>
+  </section>
+
+  <!-- Atra-e: 1 atrae_grafico · 2 atrae_pastel · 3 atrae_calculadora -->
+  <section class="panel layout-top" id="atrae" role="tabpanel" aria-labelledby="tab-atrae" hidden>
+    <div class="frame slot-a" data-src="atrae_grafico"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-b" data-src="atrae_pastel"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-c" data-src="atrae_calculadora"><div class="loading">Cargando tablero…</div></div>
+  </section>
+
+  <!-- IPAP: 1 area_agricola_mapa · 2 poblacion_colombia_grafico · 3 ipap_vs_ipc_grafico -->
+  <section class="panel layout-side" id="ipap" role="tabpanel" aria-labelledby="tab-ipap" hidden>
+    <div class="frame slot-a" data-src="area_agricola_mapa"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-b" data-src="poblacion_colombia_grafico"><div class="loading">Cargando tablero…</div></div>
+    <div class="frame slot-c" data-src="ipap_vs_ipc_grafico"><div class="loading">Cargando tablero…</div></div>
+  </section>
+</main>
+
+<footer>Econexus · Datos de la Bolsa Mercantil de Colombia y fuentes oficiales citadas en cada tablero</footer>
+
+<!-- Tableros originales, cada uno completo e intacto (codificados en base64 para que sus scripts no choquen entre sí). -->
+__SOURCES__
+
+<script>
+(function () {
+  const PANELES = ['mercop', 'mcp', 'atrae', 'ipap'];
+  const MOVIL = window.matchMedia('(max-width: 720px)');
+  const decode = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+
+  // Estilos que se inyectan en cada tablero: la tarjeta llena su celda y la sombra la pone la página
+  const CSS_TABLERO = `
+    html, body { background: transparent !important; }
+    body { margin: 0 !important; padding: 0 !important; display: block !important; min-height: 0 !important; }
+    .card { max-width: none !important; width: 100% !important; margin: 0 !important; box-shadow: none !important; }
+    .ecx-grow.body-grid { align-content: center; }
+  `;
+  // Elemento que absorbe la altura extra cuando una tarjeta debe igualar a su vecina
+  const CRECE = ['.chart-container', '.chart-wrap', '.chart-box', '.body-grid'];
+
+  const info = new WeakMap();   // iframe -> { doc, card, grow }
+
+  // Antes de que corra el tablero: recuerda los colores de cada degradado para poder redibujarlo
+  // a la altura real del gráfico cuando este crece (el original está fijo a 300 px).
+  const GUARDA_DEGRADADOS = '<script>(function(){var o=CanvasGradient.prototype.addColorStop;' +
+    'CanvasGradient.prototype.addColorStop=function(p,c){(this.__ecx||(this.__ecx=[])).push([p,c]);return o.call(this,p,c);};})();<\/script>';
+
+  function ajustarDegradados(win) {
+    const C = win.Chart;
+    if (!C || C.__ecx) return;
+    const parchar = chart => (chart.data.datasets || []).forEach(ds => {
+      const g = ds.backgroundColor;
+      if (!g || typeof g === 'function' || !g.__ecx) return;
+      const stops = g.__ecx;
+      ds.backgroundColor = c => {
+        const a = c.chart.chartArea;
+        if (!a) return 'rgba(0,0,0,0)';
+        const ng = c.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom);
+        stops.forEach(([p, col]) => ng.addColorStop(p, col));
+        return ng;
+      };
+    });
+    const update = C.prototype.update;
+    C.prototype.update = function (...args) { parchar(this); return update.apply(this, args); };
+    Object.values(C.instances || {}).forEach(ch => { parchar(ch); update.call(ch, 'none'); });
+    C.__ecx = true;
+  }
+
+  function prepararTablero(frame, ifr) {
+    const doc = ifr.contentDocument;
+    if (!doc || !doc.body) return;
+    const st = doc.createElement('style');
+    st.textContent = CSS_TABLERO;
+    doc.head.appendChild(st);
+    info.set(ifr, { doc, card: doc.querySelector('.card') || doc.body });
+    try { ajustarDegradados(doc.defaultView); } catch (e) { /* el tablero sigue funcionando con su degradado original */ }
+    new doc.defaultView.ResizeObserver(() => programar(frame.closest('.panel'), false)).observe(doc.body);
+    frame.classList.add('ready');
+    programar(frame.closest('.panel'), true);
+  }
+
+  function crecedor(i) {
+    for (const sel of CRECE) {
+      const el = [...i.doc.querySelectorAll(sel)].find(e => e.offsetParent !== null && e.getBoundingClientRect().height > 0);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  // Altura natural de la tarjeta, sin estiramientos previos
+  function natural(ifr) {
+    const i = info.get(ifr);
+    if (!i) return 0;
+    if (i.grow) { i.grow.style.minHeight = ''; i.grow.classList.remove('ecx-grow'); i.grow = null; }
+    return Math.ceil(i.card.getBoundingClientRect().height);
+  }
+
+  function estirar(ifr, extra) {
+    const i = info.get(ifr);
+    if (!i || extra <= 0) return;
+    const el = crecedor(i);
+    if (!el) return;
+    el.classList.add('ecx-grow');
+    el.style.minHeight = (el.getBoundingClientRect().height + extra) + 'px';
+    i.grow = el;
+  }
+
+  function fijar(ifr) {
+    const i = info.get(ifr);
+    if (!i) return;
+    const h = Math.ceil(i.card.getBoundingClientRect().height);
+    if (Math.abs(ifr.getBoundingClientRect().height - h) > 1) ifr.style.height = h + 'px';
+  }
+
+  // Reparte las columnas y estira la tarjeta más corta para que los bloques vecinos midan lo mismo
+  function equilibrar(panel, buscar) {
+    const ifrs = ['a', 'b', 'c'].map(k => panel.querySelector('.slot-' + k + ' iframe'));
+    if (ifrs.some(f => !f || !info.get(f))) { ifrs.forEach(f => f && info.get(f) && (natural(f), fijar(f))); return; }
+    const gap = parseFloat(getComputedStyle(panel).rowGap) || 0;
+    const lado = panel.classList.contains('layout-side'), arriba = panel.classList.contains('layout-top');
+
+    if (MOVIL.matches || (!lado && !arriba)) {
+      panel.style.gridTemplateColumns = '';
+      ifrs.forEach(f => { natural(f); fijar(f); });
+      return;
+    }
+
+    const medir = () => {
+      // los iframes deben tener su ancho final antes de medir; la altura no influye en el ancho
+      const [a, b, c] = ifrs.map(natural);
+      // un tablero que no cabe a lo ancho (se corta por la derecha) descarta ese reparto
+      const corta = ifrs.slice(0, lado ? 3 : 2).some(f => { const d = info.get(f).doc.documentElement; return d.scrollWidth > d.clientWidth + 1; });
+      return { a, b, c, corta, dif: lado ? a - (b + c + gap) : a - b };
+    };
+
+    if (buscar || !panel.dataset.frac) {
+      const pref = lado ? 0.52 : 0.5;
+      let mejor = null;
+      for (let f = 0.40; f <= 0.6201; f += 0.02) {
+        panel.style.gridTemplateColumns = `minmax(0, ${f.toFixed(2)}fr) minmax(0, ${(1 - f).toFixed(2)}fr)`;
+        const m = medir();
+        const costo = Math.abs(m.dif) + 600 * Math.abs(f - pref) + (m.corta ? 1e6 : 0);
+        if (!mejor || costo < mejor.costo) mejor = { f, costo };
+      }
+      panel.dataset.frac = mejor.f.toFixed(2);
+    }
+    const f = +panel.dataset.frac;
+    panel.style.gridTemplateColumns = `minmax(0, ${f}fr) minmax(0, ${(1 - f).toFixed(2)}fr)`;
+    const m = medir();
+    if (m.dif < 0) {
+      estirar(ifrs[0], -m.dif);
+    } else if (m.dif > 0) {
+      if (lado) { const mitad = Math.floor(m.dif / 2); estirar(ifrs[1], mitad); estirar(ifrs[2], m.dif - mitad); }
+      else estirar(ifrs[1], m.dif);
+    }
+    if (arriba) natural(ifrs[2]);
+    ifrs.forEach(fijar);
+  }
+
+  const pendientes = new Map();
+  function programar(panel, buscar) {
+    if (!panel || panel.hidden) return;
+    const prev = pendientes.get(panel);
+    if (prev) { cancelAnimationFrame(prev.id); buscar = buscar || prev.buscar; }
+    const id = requestAnimationFrame(() => { pendientes.delete(panel); equilibrar(panel, buscar); });
+    pendientes.set(panel, { id, buscar });
+  }
+
+  function cargar(panel) {
+    panel.querySelectorAll('.frame').forEach(frame => {
+      if (frame.querySelector('iframe')) return;
+      const src = document.getElementById('src-' + frame.dataset.src);
+      if (!src) return;
+      const ifr = document.createElement('iframe');
+      ifr.title = frame.dataset.src.replace(/_/g, ' ');
+      ifr.addEventListener('load', () => prepararTablero(frame, ifr));
+      ifr.srcdoc = decode(src.textContent.trim()).replace(/<head[^>]*>/i, m => m + GUARDA_DEGRADADOS);
+      frame.appendChild(ifr);
+    });
+  }
+
+  function mostrar(id, enfocar) {
+    if (!PANELES.includes(id)) id = 'mercop';
+    document.querySelectorAll('.tab').forEach(t => {
+      const on = t.dataset.panel === id;
+      t.setAttribute('aria-selected', on);
+      t.tabIndex = on ? 0 : -1;
+      if (on && enfocar) t.focus();
+    });
+    PANELES.forEach(p => { document.getElementById(p).hidden = p !== id; });
+    const panel = document.getElementById(id);
+    cargar(panel);
+    programar(panel, true);
+    if (location.hash.slice(1) !== id) history.replaceState(null, '', '#' + id);
+  }
+
+  document.querySelector('.tabs').addEventListener('click', e => {
+    const t = e.target.closest('.tab'); if (t) mostrar(t.dataset.panel);
+  });
+  document.querySelector('.tabs').addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const tabs = [...document.querySelectorAll('.tab')];
+    const i = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+    const n = (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    mostrar(tabs[n].dataset.panel, true);
+  });
+  window.addEventListener('hashchange', () => mostrar(location.hash.slice(1)));
+
+  let ancho = window.innerWidth, t;
+  window.addEventListener('resize', () => {
+    if (window.innerWidth === ancho) return;
+    ancho = window.innerWidth;
+    clearTimeout(t);
+    t = setTimeout(() => document.querySelectorAll('.panel').forEach(p => programar(p, true)), 120);
+  });
+
+  mostrar(location.hash.slice(1) || 'mercop');
+})();
+</script>
+
+</body>
+</html>

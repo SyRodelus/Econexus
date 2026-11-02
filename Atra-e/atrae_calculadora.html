@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atra-e BMC - Simulador</title>
+  <style>
+    :root {
+      --bmc-navy: #0A1F5C;
+      --bmc-blue: #1E6FC8;
+      --bmc-sky: #00AEEF;
+      --bg: #F2F2F2;
+      --card: #FFFFFF;
+      --line: #E1E4EA;
+      --muted: #6B7280;
+      --up: #1E7A46;
+      --down: #B42318;
+      --warnbg: #FFF7E6;
+      --c1: #0A1F5C;
+      --c2: #00AEEF;
+      --c3: #7A9FD1;
+      --c4: #9DC45F;
+      --c5: #C0392B;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--bmc-navy);
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      padding: 20px 16px; display: flex; justify-content: center;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--bmc-navy);
+      border-radius: 10px; padding: 24px; width: 100%; max-width: 900px;
+      box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08);
+    }
+    .header-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+    h1 { font-size: 20px; margin: 6px 0 4px; font-weight: 600; }
+    .sub { font-size: 13px; color: var(--muted); margin: 0 0 18px; }
+
+    .section-label { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; margin: 0 0 10px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .field .hint { line-height: 1.35; }
+    .inp { position: relative; display: flex; align-items: center; }
+    .inp input, .inp select {
+      width: 100%; font-family: inherit; font-size: 15px; color: var(--bmc-navy);
+      border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; background: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .inp input[readonly] { background: #F4F6FA; color: var(--bmc-navy); cursor: not-allowed; }
+    .inp input:focus, .inp select:focus { outline: 2px solid var(--bmc-blue); outline-offset: -1px; }
+    .inp .pre { position: absolute; left: 10px; color: var(--muted); font-size: 14px; pointer-events: none; }
+    .inp .suf { position: absolute; right: 10px; color: var(--muted); font-size: 13px; pointer-events: none; }
+    .inp.has-pre input { padding-left: 22px; }
+    .inp.has-suf input { padding-right: 52px; }
+
+    .shared { border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 18px; background: #FAFBFD; }
+    .price-line { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .price-line b { color: var(--bmc-navy); }
+
+    .scb { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; align-items: start; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+    .scb-info { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .scb-info b { color: var(--bmc-navy); }
+    .aclaracion { background: var(--warnbg); border: 1px solid #F3D9A4; color: #7A4B00; border-radius: 6px; padding: 8px 10px; font-size: 12px; line-height: 1.45; margin-top: 8px; }
+
+    .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+    .sl { border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fff; }
+    .sl-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .sl-top label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .sl-val { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .sl input[type=range] { width: 100%; margin: 10px 0 2px; accent-color: var(--bmc-blue); }
+    .sl-ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .sl .tipo { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .sl .tipo select { font-family: inherit; font-size: 12px; border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; color: var(--bmc-navy); }
+    .sl .hint { margin-top: 4px; }
+
+    .benef { margin-top: 14px; border: 1px solid #BFE3CF; background: #F0FAF4; border-radius: 8px; padding: 12px 14px; }
+    .benef-t { font-size: 13px; font-weight: 700; color: var(--up); }
+    .benef .check { margin-top: 0; font-size: 12px; font-weight: 600; }
+    .benef ul { margin: 8px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.5; color: #24543A; }
+    .benef li.no { color: var(--muted); }
+    .benef-ahorro { margin-top: 8px; font-size: 13px; color: var(--bmc-navy); }
+    .benef-ahorro b { color: var(--up); }
+    .tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 18px; gap: 4px; }
+    .tab {
+      font-family: inherit; background: none; border: none; border-bottom: 3px solid transparent;
+      padding: 10px 16px; font-size: 15px; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .tab.active { color: var(--bmc-navy); border-bottom-color: var(--bmc-blue); }
+    .tab small { display: block; font-size: 11px; font-weight: 500; }
+
+    .mode { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 14px; }
+    .mode button { font-family: inherit; font-size: 13px; font-weight: 600; border: none; background: #fff; color: var(--muted); padding: 7px 12px; cursor: pointer; }
+    .mode button + button { border-left: 1px solid var(--line); }
+    .mode button.active { background: var(--bmc-navy); color: #fff; }
+
+    .costs { display: none; margin-bottom: 18px; }
+    .costs.show { display: block; }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--bmc-navy); margin-top: 14px; }
+
+    .result { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px; }
+    .hero { border-radius: 10px; padding: 18px; background: var(--bmc-navy); color: #fff; }
+    .hero .k { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.8; font-weight: 600; }
+    .hero .v { font-size: 34px; font-weight: 700; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+    .hero .s { font-size: 13px; opacity: 0.85; }
+    .ind { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    .ind > div { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+    .ind .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .ind .v { font-size: 20px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .v.up { color: var(--up); } .v.down { color: var(--down); }
+
+    .bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin: 14px 0 8px; background: var(--line); }
+    .bar span { height: 100%; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    td { padding: 8px 4px; border-bottom: 1px solid var(--line); }
+    td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tr.total td { font-weight: 700; border-top: 2px solid var(--bmc-navy); border-bottom: none; }
+    tr.minus td.n { color: var(--down); }
+    tr.plus td.n { color: var(--up); }
+    .hint { font-size: 12px; color: var(--muted); }
+
+    .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .btn { font-family: inherit; font-size: 14px; font-weight: 600; border-radius: 6px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--bmc-navy); }
+    .btn.primary { background: var(--bmc-navy); color: #fff; }
+    .btn.ghost { background: #fff; color: var(--bmc-navy); }
+    .note { font-size: 11px; color: var(--muted); margin-top: 16px; line-height: 1.5; }
+    .warn { color: var(--down); font-size: 13px; margin-top: 8px; display: none; }
+
+    .source-line {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+      margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+      font-size: 12px; color: var(--muted);
+    }
+    .dl-btn {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+      font-family: inherit; font-size: 12px; font-weight: 600; color: var(--bmc-navy);
+      background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer;
+    }
+    .dl-btn:hover { border-color: var(--bmc-blue); color: var(--bmc-blue); }
+    .dl-btn svg { width: 14px; height: 14px; }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+      .result { grid-template-columns: 1fr; }
+      .scb, .sliders { grid-template-columns: 1fr; }
+      .hero .v { font-size: 28px; }
+      .dl-btn { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header-title">Atra-e • Bolsa Mercantil de Colombia</div>
+  <h1>Simulador de negociación de facturas</h1>
+  <p class="sub">La misma tasa de descuento es el costo del vendedor y el retorno del comprador. Elige la sociedad comisionista y mueve las comisiones dentro de su rango para ver cada lado.</p>
+
+  <div class="shared">
+    <div class="section-label">Datos de la factura</div>
+    <div class="grid">
+      <div class="field">
+        <label for="vn">Valor nominal</label>
+        <div class="inp has-pre"><span class="pre">$</span><input id="vn" inputmode="numeric" value="100.000.000"></div>
+      </div>
+      <div class="field">
+        <label for="dias">Días al vencimiento</label>
+        <div class="inp has-suf"><input id="dias" type="number" min="1" value="90"><span class="suf">días</span></div>
+      </div>
+      <div class="field">
+        <label for="tasa">Tasa de descuento (fija)</label>
+        <div class="inp has-suf"><input id="tasa" type="number" step="0.01" min="0" value="17.5" readonly tabindex="-1"><span class="suf">% E.A.</span></div>
+      </div>
+      <div class="field">
+        <label for="base">Base de días</label>
+        <div class="inp"><select id="base"><option value="365">365</option><option value="360">360</option></select></div>
+      </div>
+    </div>
+
+    <div class="scb">
+      <div class="field">
+        <label for="firma">Sociedad comisionista</label>
+        <div class="inp"><select id="firma"></select></div>
+      </div>
+      <div>
+        <div class="scb-info" id="firmaInfo"></div>
+        <div class="aclaracion">
+          <b>Importante:</b> las comisionistas solo publican rangos y topes, no una tarifa fija. La comisión real se pacta en el mandato
+          y depende de cómo se cierre la negociación (monto, plazo de la factura, frecuencia de operación, riesgo del pagador y tipo de endoso).
+          Mueve cada barra dentro del rango de la firma para ver el efecto.
+        </div>
+      </div>
+    </div>
+
+    <div class="sliders">
+      <div class="sl">
+        <div class="sl-top"><label for="vComR">Comisión al vender</label><span class="sl-val" id="vComV">—</span></div>
+        <input id="vComR" type="range" step="0.01">
+        <div class="sl-ends"><span id="vComMin"></span><span id="vComMax"></span></div>
+        <div class="tipo">Se cobra: <select id="vComTipo"><option value="plena">Plena (una vez)</option><option value="ea">E.A. (por los días)</option></select></div>
+        <div class="hint" id="vComHint"></div>
+      </div>
+      <div class="sl">
+        <div class="sl-top"><label for="cComR">Comisión al comprar</label><span class="sl-val" id="cComV">—</span></div>
+        <input id="cComR" type="range" step="0.01">
+        <div class="sl-ends"><span id="cComMin"></span><span id="cComMax"></span></div>
+        <div class="tipo">Se cobra: <select id="cComTipo"><option value="ea">E.A. (por los días)</option><option value="plena">Plena (una vez)</option></select></div>
+        <div class="hint" id="cComHint"></div>
+      </div>
+    </div>
+
+    <div class="benef" id="benefBox">
+      <div class="benef-t">Beneficios fiscales de Atra-e</div>
+      <ul>
+        <li><b>Sin 4 × 1.000 (GMF)</b> para vendedor y comprador: la operación se compensa y liquida por el sistema de la BMC (art. 879 num. 7 E.T.).</li>
+        <li><b>Sin retención en la fuente sobre el descuento</b> para el comprador: la factura se adquiere por endoso como título valor (lit. d, art. 1.2.4.9.1 DUR 1625/2016; Concepto DIAN 783 de 2026). El rendimiento sigue siendo ingreso gravado en renta; lo que se evita es el anticipo.</li>
+        <li><b>Descuento deducible</b> en renta para el vendedor (Ley 1231 de 2008, art. 8, par. 3). Informativo: no cambia el neto de la operación.</li>
+        <li class="no">No es beneficio: la comisión y la tarifa de la BMC sí causan IVA del 19%.</li>
+      </ul>
+      <div class="benef-ahorro" id="ahorroLinea"></div>
+    </div>
+
+    <div class="price-line" id="precioLinea"></div>
+    <div class="warn" id="warn">Revisa los datos: valor y días deben ser mayores que cero.</div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="vendedor">Vendedor<small>Cuánto recibe hoy</small></button>
+    <button class="tab" data-tab="comprador">Comprador<small>Cuánto gana al vencimiento</small></button>
+  </div>
+
+  <div class="mode" id="modo">
+    <button class="active" data-m="rapido">Rápido</button>
+    <button data-m="detallado">Detallado (con IVA y otros costos)</button>
+  </div>
+
+  <!-- Costos del vendedor -->
+  <div class="costs" id="costosVendedor">
+    <div class="section-label">Costos adicionales del vendedor</div>
+    <div class="grid">
+      <div class="field">
+        <label for="vBolsa">Tarifa de bolsa (BMC)</label>
+        <div class="inp has-suf"><input id="vBolsa" type="number" readonly tabindex="-1"><span class="suf">% E.A.</span></div>
+        <div class="hint" id="vBolsaHint"></div>
+      </div>
+      <div class="field">
+        <label for="vIva">IVA sobre comisión y tarifa</label>
+        <div class="inp has-suf"><input id="vIva" type="number" step="0.1" min="0" value="19"><span class="suf">%</span></div>
+      </div>
+      <div class="field">
+        <label for="vFijo">Costo fijo por operación</label>
+        <div class="inp has-pre"><span class="pre">$</span><input id="vFijo" inputmode="numeric" value="0"></div>
+        <div class="hint">Ej.: tarifa mínima de la firma, si la cobra.</div>
+      </div>
+    </div>
+    <div class="hint" id="vGmfHint" style="margin-top:12px"></div>
+  </div>
+
+  <!-- Costos del comprador -->
+  <div class="costs" id="costosComprador">
+    <div class="section-label">Costos adicionales del comprador</div>
+    <div class="grid">
+      <div class="field">
+        <label for="cBolsa">Tarifa de bolsa (BMC)</label>
+        <div class="inp has-suf"><input id="cBolsa" type="number" readonly tabindex="-1" value="0"><span class="suf">%</span></div>
+        <div class="hint">La BMC no cobra a la punta compradora.</div>
+      </div>
+      <div class="field">
+        <label for="cIva">IVA sobre comisión</label>
+        <div class="inp has-suf"><input id="cIva" type="number" step="0.1" min="0" value="19"><span class="suf">%</span></div>
+      </div>
+      <div class="field">
+        <label for="cRet">Retención en la fuente</label>
+        <div class="inp has-suf"><input id="cRet" type="number" readonly tabindex="-1" value="0"><span class="suf">%</span></div>
+        <div class="hint">No aplica sobre el descuento (beneficio fiscal de Atra-e).</div>
+      </div>
+    </div>
+    <div class="hint" id="cGmfHint" style="margin-top:12px"></div>
+  </div>
+
+  <div class="result">
+    <div>
+      <div class="hero">
+        <div class="k" id="heroK">—</div>
+        <div class="v" id="heroV">—</div>
+        <div class="s" id="heroS">—</div>
+      </div>
+      <div class="ind">
+        <div><div class="k" id="i1k">—</div><div class="v" id="i1v">—</div></div>
+        <div><div class="k" id="i2k">—</div><div class="v" id="i2v">—</div></div>
+      </div>
+      <div class="bar" id="bar"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div>
+      <div class="section-label">Desglose</div>
+      <table><tbody id="desglose"></tbody></table>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="copiar">Copiar resumen</button>
+    <button class="btn ghost" id="reset">Restablecer</button>
+  </div>
+
+  <div class="note">
+    Simulación con fines ilustrativos. Precio = valor nominal ÷ (1 + tasa E.A.)^(días ÷ base), con tasa de descuento fija.
+    Tarifa de bolsa: la vigente de la BMC para la punta vendedora (BNC-2026-8), tasa E.A. según la fecha de pago de la factura
+    (1,00% hasta 45 días, 0,85% de 46 a 120 días, 0,65% más de 120 días), aplicada por los días: precio × ((1 + tarifa)^(días ÷ base) − 1).
+    Comisiones: rango publicado por cada firma; la comisión real se pacta en el mandato.
+    Una comisión "plena" se cobra una sola vez sobre el precio; una "E.A." se cobra por los días del plazo.
+    En modo Detallado se suman el IVA del 19% sobre comisión y tarifa, y el costo fijo; con los beneficios fiscales de Atra-e activos, el GMF y la retención sobre el descuento quedan en cero.
+  </div>
+
+  <div class="source-line">
+    <span>Fuente: Bolsa Mercantil de Colombia y sociedades comisionistas</span>
+    <span>·</span>
+    <span id="ultimo-dato">Último dato: oct 2026</span>
+    <button class="dl-btn" id="descargar" type="button" title="Descarga las tarifas, comisiones y la simulación actual con sus fuentes y notas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path>
+      </svg>
+      Descargar datos (.xlsx)
+    </button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  /* ---------------- Datos y fuentes ---------------- */
+  const CONSULTA = '31-oct-2026';
+  const TASA_FIJA = 17.5;          // % E.A., no editable
+  const RANGO_MERCADO = 6;         // tope más alto publicado (Mercado y Bolsa), para firmas sin tope
+
+  const FUENTES = [
+    { id: 'S1', doc: 'BMC – Circular Única, Título Séptimo, art. 1.7.3.3 (versión web vigente)', aporta: 'Tarifa de negociación de facturas: solo punta vendedora; 1,00% E.A. (0–45 días), 0,85% E.A. (46–120 días), 0,65% E.A. (más de 120 días). Sin tarifa a la punta compradora.', url: 'https://www.bolsamercantil.com.co/circular/libro-primero/titulo-septimo' },
+    { id: 'S2', doc: 'Comfinagro – Política de comisiones y tarifas v8 (22-may-2026)', aporta: 'Vigencia de la tarifa E.A. por el boletín BNC-2026-8 (may-2026). Comprador: costo total hasta 3% por diferencial de tasas. No publica tope para la venta de facturas.', url: 'https://comfinagro.com.co/wp-content/uploads/2026/07/Politica_de_Comisiones_Comfinagro_S.A_mayo_22_de_2026.pdf' },
+    { id: 'S3', doc: 'Agrobolsa – Tarifas 2025 (actualizado 9-ene-2025, vigente)', aporta: 'Negociación de facturas: 0,2% a 3% plena. Financiero (compra): 0,3% a 2% E.A.', url: 'https://www.agrobolsa.com.co/agrobolsa/tarifas.php' },
+    { id: 'S4', doc: 'Comiagro – Política de Comisiones (2026)', aporta: 'Negociación de facturas: hasta 5% sobre el valor de la operación. Comprador: diferencial de tasas hasta 3% anual (incluye costos BMC e IVA).', url: 'https://comiagro.com/wp-content/uploads/2026/09/comiagro-politica-comisiones.pdf' },
+    { id: 'S5', doc: 'Correagro – Política de tarifas PO-02-2024 (única versión publicada)', aporta: 'Mercado de instrumentos financieros: vendedor hasta 5%; comprador hasta 5% (diferencial de tasas).', url: 'https://www.correagro.com/documentos/politica-tarifas-comisiones.pdf' },
+    { id: 'S6', doc: 'Mercado y Bolsa – Manual de Comisiones v5.1 (26-may-2026)', aporta: 'Vendedor: hasta 6% por operación. Comprador: hasta 2% E.A. Exención de GMF para el pagador.', url: 'https://mercadoybolsa.com/wp-content/uploads/2026/06/Manual-Comisiones-V.5.1.pdf' },
+    { id: 'S7', doc: 'Reyca (Renta y Campo Corredores) – Políticas de comisión v5 (27-feb-2026)', aporta: 'Instrumentos financieros: vendedor 0,1% a 5%; comprador 0,1% a 5%, antes de IVA. No cobra al pagador.', url: 'https://reycacorredores.com/wp-content/uploads/2026/03/POLITICAS-DE-COMISI_N-vr.-0.5.pdf' },
+    { id: 'S8', doc: 'Miguel Quijano & Cía – Venta de facturas electrónicas (página, jul-2026)', aporta: 'Comisión hasta 2% plena + IVA, con tarifa mínima por operación (no publicada). IVA sobre comisión y tarifas de la Bolsa.', url: 'https://miguelquijano.com.co/en/venta-de-facturas-electronicas/' },
+    { id: 'S9', doc: 'Miguel Quijano & Cía – misma página, sección Impuestos', aporta: 'Factoring exento de GMF cuando el desembolso se gira directo a la cuenta del beneficiario.', url: 'https://miguelquijano.com.co/en/venta-de-facturas-electronicas/' },
+    { id: 'S10', doc: 'Bursagán – Políticas de comisiones (PC-v4, oct-2024)', aporta: 'Tabla de facturas publicada como imagen; no fue posible leerla. Solicítela a la firma.', url: 'https://bursagan.com.co/gobierno-corporativo/politicas-de-comisiones/' },
+    { id: 'S11', doc: 'Coragro Valores – Tarifas y operaciones vigentes (may-2026)', aporta: 'Documento enlazado no accesible. Solicítelo a la firma.', url: 'https://coragrovalores.com/' },
+    { id: 'S12', doc: 'Geocapital – Política de comisiones y tarifario', aporta: 'Documentos enlazados no accesibles. Solicítelos a la firma.', url: 'https://geocapital.co/servicio-al-cliente' },
+    { id: 'S13', doc: 'BMC – Sociedades comisionistas de bolsa', aporta: 'Listado de las 10 sociedades comisionistas miembro.', url: 'https://www.bolsamercantil.com.co/sociedades-comisionistas-de-bolsa' },
+    { id: 'S14', doc: 'BMC – Informe de gestión y sostenibilidad 2024', aporta: 'Los inversionistas de Atra-e se benefician de la exención tributaria del GMF.', url: 'https://www.bolsamercantil.com.co/sites/default/files/2025-02/Informe%20de%20gesti%C3%B3n%20y%20sostenibilidad%202024.pdf' },
+    { id: 'S15', doc: 'DIAN – Concepto 000783 (23-ene-2026)', aporta: 'En factoring con endoso de título valor, el descuento no está sujeto a retención en la fuente (lit. d, art. 1.2.4.9.1 DUR 1625/2016); el rendimiento es ingreso gravable / gasto deducible (Ley 1231/2008 art. 8 par. 3).', url: 'https://normograma.dian.gov.co/dian/compilacion/docs/oficio_dian_0783_2026.htm' },
+    { id: 'S16', doc: 'DIAN – Oficio 11006 de 2008 (art. 879 num. 7 E.T.)', aporta: 'Exención de GMF para la compensación y liquidación de operaciones en bolsas de productos agropecuarios; los movimientos posteriores al abono al beneficiario sí causan GMF.', url: 'https://normograma.dian.gov.co/dian/compilacion/docs/oficio_dian_11006_2008.htm' },
+    { id: 'S17', doc: 'DIAN – Oficio 14896 de 2017 (texto del art. 1.2.4.9.1 DUR 1625/2016)', aporta: 'Literal d): no hay retención por otros ingresos en pagos por adquisición de acciones, derechos sociales, títulos valores y similares.', url: 'https://normograma.dian.gov.co/dian/compilacion/docs/oficio_dian_14896_2017.htm' }
+  ];
+
+  const BMC = {
+    norma: 'BNC-2026-8 · Circular Única art. 1.7.3.3', vigencia: 'may-2026 – vigente', fuente: 'S1, S2',
+    tramos: [ { hasta: 45, tasa: 1.00, txt: '0 a 45 días' }, { hasta: 120, tasa: 0.85, txt: '46 a 120 días' }, { hasta: Infinity, tasa: 0.65, txt: 'Más de 120 días' } ]
+  };
+  const tramoBMC = d => BMC.tramos.find(t => d <= t.hasta);
+
+  // Rango publicado por punta. min null = la firma no publica mínimo (se usa 0). Lado null = no publicado.
+  const SCB = [
+    { id: 'agrobolsa', n: 'Agrobolsa', doc: 'Tarifas 2025 (vigente)', src: 'S3',
+      v: { min: 0.2, max: 3, tipo: 'plena', rango: '0,2% – 3% plena' },
+      c: { min: 0.3, max: 2, tipo: 'ea', rango: '0,3% – 2% E.A.' } },
+    { id: 'bursagan', n: 'Bursagán', doc: 'PC-v4 (oct-2024)', src: 'S10', v: null, c: null,
+      nota: 'Tabla de facturas no accesible.' },
+    { id: 'comfinagro', n: 'Comfinagro', doc: 'v8 (22-may-2026)', src: 'S2',
+      v: null,
+      c: { min: null, max: 3, tipo: 'ea', rango: 'Hasta 3% anual (diferencial de tasas; incluye costos BMC e IVA)' },
+      nota: 'No publica tope para la venta de facturas.' },
+    { id: 'comiagro', n: 'Comiagro', doc: 'Política 2026', src: 'S4',
+      v: { min: null, max: 5, tipo: 'plena', rango: 'Hasta 5% sobre el valor de la operación' },
+      c: { min: null, max: 3, tipo: 'ea', rango: 'Hasta 3% anual (diferencial de tasas; incluye costos BMC e IVA)' } },
+    { id: 'coragro', n: 'Coragro Valores', doc: 'Política may-2026', src: 'S11', v: null, c: null,
+      nota: 'Documento no accesible.' },
+    { id: 'correagro', n: 'Correagro', doc: 'PO-02-2024', src: 'S5',
+      v: { min: null, max: 5, tipo: 'plena', rango: 'Hasta 5%' },
+      c: { min: null, max: 5, tipo: 'ea', rango: 'Hasta 5% (diferencial de tasas)' } },
+    { id: 'geocapital', n: 'Geocapital', doc: 'Política y tarifario', src: 'S12', v: null, c: null,
+      nota: 'Documentos no accesibles.' },
+    { id: 'myb', n: 'Mercado y Bolsa', doc: 'Manual v5.1 (26-may-2026)', src: 'S6',
+      v: { min: null, max: 6, tipo: 'plena', rango: 'Hasta 6% por operación' },
+      c: { min: null, max: 2, tipo: 'ea', rango: 'Hasta 2% E.A.' } },
+    { id: 'mq', n: 'Miguel Quijano & Cía', doc: 'Página web (jul-2026)', src: 'S8',
+      v: { min: null, max: 2, tipo: 'plena', rango: 'Hasta 2% plena + IVA, con tarifa mínima por operación (no publicada)' },
+      c: null, nota: 'No publica comisión para el comprador.' },
+    { id: 'reyca', n: 'Reyca Corredores', doc: 'v5 (27-feb-2026)', src: 'S7',
+      v: { min: 0.1, max: 5, tipo: 'plena', rango: '0,1% – 5% plena' },
+      c: { min: 0.1, max: 5, tipo: 'plena', rango: '0,1% – 5% plena' } },
+    { id: 'custom', n: 'Otra / personalizada', doc: '', src: '', v: null, c: null,
+      nota: 'Sin rango publicado: usa la comisión pactada en tu mandato.' }
+  ];
+
+  /* ---------------- Utilidades ---------------- */
+  const $ = id => document.getElementById(id);
+  const firma = () => SCB.find(f => f.id === $('firma').value);
+  const nf0 = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 });
+  const nf2 = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = v => (v < 0 ? '−$' : '$') + nf0.format(Math.abs(Math.round(v)));
+  const pct = v => isFinite(v) ? nf2.format(v * 100) + '%' : '—';
+  const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+  const pesos = id => parseFloat(String($(id).value).replace(/[^\d]/g, '')) || 0;
+  const tipoTxt = t => t === 'ea' ? 'E.A.' : 'plena';
+  const GMF = 0.004;
+  const beneficios = () => true;   // los beneficios fiscales de Atra-e siempre se aplican
+  const RET_REF = 7;               // % de retención por rendimientos financieros que se evita (solo para calcular el ahorro)
+
+  let tab = 'vendedor';
+  let modo = 'rapido';
+  let resumen = '';
+  let ultimo = null;
+
+  // Comisión "plena": una vez sobre el precio. "ea": tasa anual cobrada por los días del plazo.
+  const cobro = (precio, pctv, tipo, b) => tipo === 'ea'
+    ? precio * (Math.pow(1 + pctv / 100, b.d / b.B) - 1)
+    : precio * pctv / 100;
+
+  ['vn', 'vFijo'].forEach(id => {
+    $(id).addEventListener('input', e => {
+      const raw = e.target.value.replace(/[^\d]/g, '');
+      e.target.value = raw ? nf0.format(+raw) : '';
+      calcular();
+    });
+  });
+
+  /* ---------------- Firma y rangos ---------------- */
+  $('firma').innerHTML = SCB.map(f => `<option value="${f.id}">${f.n}</option>`).join('');
+
+  // Rango usable en la barra: publicado, o 0 – tope del mercado si la firma no publica
+  const rangoDe = x => x
+    ? { min: x.min ?? 0, max: x.max, tipo: x.tipo, publicado: true }
+    : { min: 0, max: RANGO_MERCADO, tipo: null, publicado: false };
+
+  function configurarBarra(pref, x, tipoDef) {
+    const r = rangoDe(x);
+    const el = $(pref + 'R');
+    el.min = r.min; el.max = r.max;
+    el.value = +((r.min + r.max) / 2).toFixed(2);   // por defecto: punto medio del rango
+    $(pref + 'Min').textContent = `${nf2.format(r.min)}%`;
+    $(pref + 'Max').textContent = `${nf2.format(r.max)}%${r.publicado ? ' (tope)' : ''}`;
+    $(pref + 'Tipo').value = r.tipo || tipoDef;
+  }
+
+  function aplicarFirma() {
+    const f = firma();
+    const lado = x => x ? `${x.rango}` : 'No publicado';
+    $('firmaInfo').innerHTML = f.id === 'custom'
+      ? f.nota
+      : `<b>${f.n}</b> · ${f.doc}<br>Vendedor: ${lado(f.v)}<br>Comprador: ${lado(f.c)}${f.nota ? `<br>${f.nota}` : ''}`;
+    configurarBarra('vCom', f.v, 'plena');
+    configurarBarra('cCom', f.c, 'ea');
+  }
+  $('firma').addEventListener('change', () => { aplicarFirma(); calcular(); });
+
+  function textosBarras() {
+    const f = firma();
+    ['vCom', 'cCom'].forEach(pref => {
+      const x = pref === 'vCom' ? f.v : f.c;
+      $(pref + 'V').textContent = `${nf2.format(num(pref + 'R'))}% ${tipoTxt($(pref + 'Tipo').value)}`;
+      $(pref + 'Hint').textContent = x
+        ? `Rango publicado: ${x.rango.replace(/\.$/, "")}. El valor final depende de cómo se cierre la negociación.`
+        : `${f.n} no publica este rango; se muestra 0% – ${RANGO_MERCADO}% (tope más alto del mercado). Ajusta a lo pactado.`;
+    });
+  }
+
+  /* ---------------- Cálculo ---------------- */
+  function base() {
+    const VN = pesos('vn'), d = num('dias'), t = TASA_FIJA / 100, B = +$('base').value;
+    const ok = VN > 0 && d > 0;
+    $('warn').style.display = ok ? 'none' : 'block';
+    const precio = ok ? VN / Math.pow(1 + t, d / B) : 0;
+    return { VN, d, t, B, ok, precio, descuento: VN - precio };
+  }
+
+  // Comisión y tarifa BMC siempre; IVA y costo fijo solo en detallado; GMF y retención solo si se desactivan los beneficios (detallado)
+  function vendedor(b) {
+    const det = modo === 'detallado';
+    const tr = tramoBMC(b.d);
+    const com = cobro(b.precio, num('vComR'), $('vComTipo').value, b);
+    const bolsa = cobro(b.precio, tr.tasa, 'ea', b);
+    const iva = det ? (com + bolsa) * num('vIva') / 100 : 0;
+    const fijo = det ? pesos('vFijo') : 0;
+    const antesGmf = b.precio - com - bolsa - iva - fijo;
+    const gmfSin = antesGmf * GMF;                     // lo que costaría sin la exención
+    const gmf = beneficios() ? 0 : (det ? gmfSin : 0);
+    const neto = antesGmf - gmf;
+    const costoEA = Math.pow(b.VN / neto, b.B / b.d) - 1;
+    const ahorro = beneficios() ? gmfSin : 0;
+    return { tr, com, bolsa, iva, fijo, gmf, gmfSin, ahorro, neto, costoEA, costoTotal: b.VN - neto };
+  }
+
+  function comprador(b) {
+    const det = modo === 'detallado';
+    const com = cobro(b.precio, num('cComR'), $('cComTipo').value, b);
+    const bolsa = 0;
+    const iva = det ? (com + bolsa) * num('cIva') / 100 : 0;
+    const antesGmf = b.precio + com + bolsa + iva;
+    const gmfSin = antesGmf * GMF;
+    const retSin = b.descuento * RET_REF / 100;
+    const ben = beneficios();
+    const gmf = ben ? 0 : (det ? gmfSin : 0);
+    const ret = ben ? 0 : (det ? retSin : 0);
+    const inversion = antesGmf + gmf;
+    const recibe = b.VN - ret;
+    const ganancia = recibe - inversion;
+    const rentEA = Math.pow(recibe / inversion, b.B / b.d) - 1;
+    const ahorroGmf = ben ? gmfSin : 0, ahorroRet = ben ? retSin : 0;
+    return { com, bolsa, iva, gmf, gmfSin, retSin, inversion, ret, recibe, ganancia, rentEA, ahorroGmf, ahorroRet, ahorro: ahorroGmf + ahorroRet };
+  }
+
+  function pintarBarra(partes, total) {
+    $('bar').innerHTML = partes.filter(p => p.v > 0)
+      .map(p => `<span style="width:${p.v / total * 100}%;background:${p.c}" title="${p.n}: ${money(p.v)}"></span>`).join('');
+    $('legend').innerHTML = partes.filter(p => p.v > 0)
+      .map(p => `<span><i style="background:${p.c}"></i>${p.n} ${nf2.format(p.v / total * 100)}%</span>`).join('');
+  }
+
+  function filas(lista) {
+    $('desglose').innerHTML = lista.filter(f => f.always || Math.round(f.v) !== 0).map(f =>
+      `<tr class="${f.cls || ''}"><td>${f.n}${f.h ? `<div class="hint">${f.h}</div>` : ''}</td><td class="n">${f.sign || ''}${money(f.v)}</td></tr>`).join('');
+  }
+
+  function calcular() {
+    const b = base();
+    const css = getComputedStyle(document.documentElement);
+    const c = k => css.getPropertyValue(k).trim();
+    $('costosVendedor').classList.toggle('show', tab === 'vendedor' && modo === 'detallado');
+    $('costosComprador').classList.toggle('show', tab === 'comprador' && modo === 'detallado');
+
+    const tr = tramoBMC(Math.max(num('dias'), 0));
+    $('vBolsa').value = tr.tasa.toFixed(2);
+    $('vBolsaHint').textContent = `Tramo ${tr.txt} · ${BMC.norma}.`;
+    textosBarras();
+
+    if (!b.ok) { $('precioLinea').innerHTML = ''; ['heroV','heroS','i1v','i2v'].forEach(id => $(id).textContent = '—'); $('desglose').innerHTML=''; $('bar').innerHTML=''; $('legend').innerHTML=''; ultimo = null; return; }
+
+    const f = firma();
+    const v = vendedor(b), p = comprador(b);
+    ultimo = { b, v, p, f };
+    const comVtxt = `${nf2.format(num('vComR'))}% ${tipoTxt($('vComTipo').value)}`;
+    const comCtxt = `${nf2.format(num('cComR'))}% ${tipoTxt($('cComTipo').value)}`;
+
+    $('precioLinea').innerHTML =
+      `Precio de negociación: <b>${money(b.precio)}</b> · Descuento: <b>${money(b.descuento)}</b> (${pct(b.descuento / b.VN)} del nominal)<br>` +
+      `Con ${f.n}: el vendedor recibe <b>${money(v.neto)}</b> (comisión ${comVtxt} + tarifa BMC) · ` +
+      `el comprador paga <b>${money(p.inversion)}</b> (comisión ${comCtxt})` +
+      (modo === 'detallado' ? ' · incluye IVA y costos adicionales' : '');
+
+    const ben = beneficios();
+    $('ahorroLinea').innerHTML = `Ahorro con los beneficios: vendedor <b>${money(v.ahorro)}</b> (GMF) · comprador <b>${money(p.ahorro)}</b> (GMF ${money(p.ahorroGmf)} + retención ${money(p.ahorroRet)}).`;
+    $('vGmfHint').textContent = 'GMF (4 × 1.000): exento por liquidarse a través de la BMC.';
+    $('cGmfHint').textContent = 'GMF (4 × 1.000): exento por liquidarse a través de la BMC.';
+
+    if (tab === 'vendedor') {
+      $('heroK').textContent = 'El vendedor recibe hoy';
+      $('heroV').textContent = money(v.neto);
+      $('heroS').textContent = `En lugar de esperar ${nf0.format(b.d)} días para cobrar ${money(b.VN)}`;
+      $('i1k').textContent = 'Costo total de anticipar';
+      $('i1v').textContent = money(v.costoTotal); $('i1v').className = 'v down';
+      $('i2k').textContent = 'Costo efectivo E.A.';
+      $('i2v').textContent = pct(v.costoEA); $('i2v').className = 'v down';
+      pintarBarra([
+        { n: 'Neto recibido', v: v.neto, c: c('--c1') },
+        { n: 'Descuento (va al comprador)', v: b.descuento, c: c('--c2') },
+        { n: 'Comisión, bolsa e IVA', v: v.com + v.bolsa + v.iva, c: c('--c3') },
+        { n: 'GMF y costo fijo', v: v.gmf + v.fijo, c: c('--c5') }
+      ], b.VN);
+      filas([
+        { n: 'Valor nominal de la factura', v: b.VN, always: true },
+        { n: 'Descuento por tasa', h: `${nf2.format(b.t * 100)}% E.A. (fija) por ${b.d} días`, v: b.descuento, sign: '− ', cls: 'minus', always: true },
+        { n: 'Comisión comisionista', h: `${f.n} · ${comVtxt} (se pacta en el mandato)`, v: v.com, sign: '− ', cls: 'minus' },
+        { n: 'Tarifa de bolsa (BMC)', h: `${nf2.format(v.tr.tasa)}% E.A. · tramo ${v.tr.txt}`, v: v.bolsa, sign: '− ', cls: 'minus' },
+        { n: 'IVA', v: v.iva, sign: '− ', cls: 'minus' },
+        { n: 'Costo fijo', v: v.fijo, sign: '− ', cls: 'minus' },
+        { n: 'GMF (4 × 1.000)', v: v.gmf, sign: '− ', cls: 'minus' },
+        { n: 'Neto que recibe el vendedor', v: v.neto, cls: 'total', always: true },
+        { n: 'Ahorro por beneficios fiscales', h: 'GMF (4 × 1.000) exento; no se descuenta', v: v.ahorro, cls: 'plus' }
+      ]);
+      resumen = [
+        'Atra-e · Simulación VENDEDOR',
+        `Valor nominal: ${money(b.VN)} · ${b.d} días · ${nf2.format(b.t * 100)}% E.A. fija (base ${b.B})`,
+        `Precio de negociación: ${money(b.precio)}`,
+        `Comisionista: ${f.n} (${comVtxt}) · Tarifa BMC: ${nf2.format(v.tr.tasa)}% E.A.`,
+        `Costos totales: ${money(v.com + v.bolsa + v.iva + v.fijo + v.gmf)}${modo === 'detallado' ? ' (incluye IVA y costos adicionales)' : ' (sin IVA)'}`,
+        `Neto recibido hoy: ${money(v.neto)}`,
+        `Costo total: ${money(v.costoTotal)} · Costo efectivo: ${pct(v.costoEA)} E.A.`,
+        beneficios() ? `Beneficio fiscal Atra-e: GMF exento (ahorro ${money(v.ahorro)})` : 'Sin beneficios fiscales aplicados',
+        'La comisión real depende de cómo se cierre la negociación, dentro del rango publicado por la firma.'
+      ].filter(Boolean).join('\n');
+    } else {
+      $('heroK').textContent = 'El comprador gana';
+      $('heroV').textContent = money(p.ganancia);
+      $('heroS').textContent = `Invierte ${money(p.inversion)} hoy y recibe ${money(p.recibe)} en ${nf0.format(b.d)} días`;
+      $('i1k').textContent = 'Rentabilidad efectiva E.A.';
+      $('i1v').textContent = pct(p.rentEA); $('i1v').className = 'v ' + (p.ganancia >= 0 ? 'up' : 'down');
+      $('i2k').textContent = 'Rentabilidad del periodo';
+      $('i2v').textContent = pct(p.ganancia / p.inversion); $('i2v').className = 'v ' + (p.ganancia >= 0 ? 'up' : 'down');
+      pintarBarra([
+        { n: 'Capital invertido', v: b.precio, c: c('--c1') },
+        { n: 'Ganancia neta', v: Math.max(p.ganancia, 0), c: c('--c4') },
+        { n: 'Comisión, IVA y GMF', v: p.com + p.bolsa + p.iva + p.gmf, c: c('--c3') },
+        { n: 'Retención', v: p.ret, c: c('--c5') }
+      ], b.VN);
+      filas([
+        { n: 'Precio de compra', v: b.precio, always: true },
+        { n: 'Comisión comisionista', h: `${f.n} · ${comCtxt} (se pacta en el mandato)`, v: p.com, sign: '+ ' },
+        { n: 'IVA', v: p.iva, sign: '+ ' },
+        { n: 'GMF (4 × 1.000)', v: p.gmf, sign: '+ ' },
+        { n: 'Inversión total hoy', v: p.inversion, cls: 'total', always: true },
+        { n: 'Pago del valor nominal al vencimiento', v: b.VN, always: true },
+        { n: 'Retención en la fuente', h: 'Sobre el rendimiento', v: p.ret, sign: '− ', cls: 'minus' },
+        { n: 'Ganancia neta', v: p.ganancia, cls: 'total', always: true },
+        { n: 'Ahorro por beneficios fiscales', h: `GMF exento ${money(p.ahorroGmf)} · sin retención sobre el descuento ${money(p.ahorroRet)}`, v: p.ahorro, cls: 'plus' }
+      ]);
+      resumen = [
+        'Atra-e · Simulación COMPRADOR',
+        `Valor nominal: ${money(b.VN)} · ${b.d} días · ${nf2.format(b.t * 100)}% E.A. fija (base ${b.B})`,
+        `Comisionista: ${f.n} (${comCtxt}) · La BMC no cobra al comprador`,
+        `Inversión total hoy: ${money(p.inversion)}`,
+        modo === 'detallado' ? `Retención en la fuente: ${money(p.ret)}` : '',
+        `Recibe al vencimiento: ${money(p.recibe)}`,
+        `Ganancia neta: ${money(p.ganancia)} · Rentabilidad efectiva: ${pct(p.rentEA)} E.A.`,
+        beneficios() ? `Beneficios fiscales Atra-e: GMF exento y sin retención sobre el descuento (ahorro ${money(p.ahorro)})` : 'Sin beneficios fiscales aplicados',
+        'La comisión real depende de cómo se cierre la negociación, dentro del rango publicado por la firma.'
+      ].filter(Boolean).join('\n');
+    }
+  }
+
+  /* ---------------- Descarga .xlsx ---------------- */
+  function hoja(aoa, anchos, pctCols) {
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = anchos.map(w => ({ wch: w }));
+    if (pctCols) {
+      const r = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = 1; R <= r.e.r; R++) pctCols.forEach(C => {
+        const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+        if (cell && cell.t === 'n') cell.z = '0.00%';
+      });
+    }
+    return ws;
+  }
+  const fr = x => +(x).toFixed(6);
+
+  $('descargar').addEventListener('click', () => {
+    if (typeof XLSX === 'undefined') { alert('No se pudo cargar el generador de Excel. Revisa tu conexión a internet e inténtalo de nuevo.'); return; }
+    const wb = XLSX.utils.book_new();
+
+    if (ultimo) {
+      const { b, v, p, f } = ultimo;
+      const det = modo === 'detallado';
+      const rv = rangoDe(f.v), rc = rangoDe(f.c);
+      const sim = [
+        ['Concepto', 'Valor', 'Unidad', 'Fuente / nota'],
+        ['Valor nominal', b.VN, 'COP', 'Dato del usuario'],
+        ['Días al vencimiento', b.d, 'días', 'Dato del usuario'],
+        ['Tasa de descuento', fr(b.t), 'E.A.', 'Fija en el simulador'],
+        ['Base de días', b.B, 'días', 'Dato del usuario'],
+        ['Modo', det ? 'Detallado' : 'Rápido (sin IVA ni costos adicionales)', '', ''],
+        ['Precio de negociación', Math.round(b.precio), 'COP', 'VN ÷ (1 + tasa)^(días ÷ base)'],
+        ['Descuento', Math.round(b.descuento), 'COP', ''],
+        ['Sociedad comisionista', f.n, '', f.src ? `Fuente ${f.src}` : 'Personalizada'],
+        [],
+        ['VENDEDOR'],
+        ['Comisión usada', fr(num('vComR') / 100), tipoTxt($('vComTipo').value), f.v ? `Rango publicado: ${f.v.rango} (${f.src})` : `No publicado; rango de referencia 0% – ${RANGO_MERCADO}%`],
+        ['Rango mínimo', fr(rv.min / 100), '', f.v && f.v.min == null ? 'La firma no publica mínimo' : ''],
+        ['Rango máximo (tope)', fr(rv.max / 100), '', ''],
+        ['Tarifa BMC', fr(v.tr.tasa / 100), 'E.A.', `Tramo ${v.tr.txt} · ${BMC.norma} (S1)`],
+        ['Comisión (COP)', Math.round(v.com), 'COP', ''],
+        ['Tarifa BMC (COP)', Math.round(v.bolsa), 'COP', 'Precio × ((1 + tarifa)^(días ÷ base) − 1)'],
+        ['IVA', Math.round(v.iva), 'COP', det ? `${num('vIva')}% sobre comisión y tarifa (S8)` : 'No incluido en modo Rápido'],
+        ['Costo fijo', Math.round(v.fijo), 'COP', 'Dato del usuario'],
+        ['GMF', Math.round(v.gmf), 'COP', beneficios() ? 'Exento: art. 879 num. 7 E.T. (S14, S16)' : (det ? '4 × 1.000 (beneficios desactivados)' : 'No incluido en modo Rápido')],
+        ['Neto que recibe el vendedor', Math.round(v.neto), 'COP', ''],
+        ['Costo efectivo', fr(v.costoEA), 'E.A.', ''],
+        [],
+        ['COMPRADOR'],
+        ['Comisión usada', fr(num('cComR') / 100), tipoTxt($('cComTipo').value), f.c ? `Rango publicado: ${f.c.rango} (${f.src})` : `No publicado; rango de referencia 0% – ${RANGO_MERCADO}%`],
+        ['Rango mínimo', fr(rc.min / 100), '', f.c && f.c.min == null ? 'La firma no publica mínimo' : ''],
+        ['Rango máximo (tope)', fr(rc.max / 100), '', ''],
+        ['Tarifa BMC', 0, '', 'La BMC no cobra a la punta compradora (S1)'],
+        ['Comisión (COP)', Math.round(p.com), 'COP', ''],
+        ['IVA', Math.round(p.iva), 'COP', det ? `${num('cIva')}% sobre comisión` : 'No incluido en modo Rápido'],
+        ['GMF', Math.round(p.gmf), 'COP', beneficios() ? 'Exento: art. 879 num. 7 E.T. (S14, S16)' : (det ? '4 × 1.000 (beneficios desactivados)' : 'No incluido en modo Rápido')],
+        ['Inversión total', Math.round(p.inversion), 'COP', ''],
+        ['Retención en la fuente', Math.round(p.ret), 'COP', beneficios() ? 'No aplica: endoso de título valor, lit. d art. 1.2.4.9.1 DUR 1625/2016 (S15)' : (det ? `${num('cRet')}% sobre el descuento (beneficios desactivados)` : 'No incluida en modo Rápido')],
+        ['Ganancia neta', Math.round(p.ganancia), 'COP', ''],
+        ['Rentabilidad neta', fr(p.rentEA), 'E.A.', ''],
+        [],
+        ['BENEFICIOS FISCALES', 'Aplicados'],
+        ['Ahorro vendedor – GMF', Math.round(v.ahorro), 'COP', 'Exención GMF (S14, S16)'],
+        ['Ahorro comprador – GMF', Math.round(p.ahorroGmf), 'COP', 'Exención GMF (S14, S16)'],
+        ['Ahorro comprador – retención', Math.round(p.ahorroRet), 'COP', `Retención evitada (${RET_REF}% de rendimientos financieros sobre el descuento) (S15, S17). Es un anticipo: el rendimiento sigue gravado en renta.`],
+        [],
+        ['Las comisiones se pactan en el mandato y dependen de cómo se cierre la negociación, dentro del rango publicado por cada firma.']
+      ];
+      const ws = hoja(sim, [30, 18, 10, 70]);
+      ['B4', 'B12', 'B13', 'B14', 'B15', 'B22', 'B25', 'B26', 'B27', 'B35'].forEach(a => { if (ws[a] && ws[a].t === 'n') ws[a].z = '0.00%'; });
+      ['B2', 'B7', 'B8', 'B16', 'B17', 'B18', 'B19', 'B20', 'B21', 'B29', 'B30', 'B31', 'B32', 'B33', 'B34'].forEach(a => { if (ws[a]) ws[a].z = '#,##0'; });
+      XLSX.utils.book_append_sheet(wb, ws, 'Simulación');
+    }
+
+    const bmc = [['Fecha de pago convenida', 'Tarifa (E.A.)', 'Punta', 'Base de cálculo', 'Norma', 'Vigencia', 'Fuente']]
+      .concat(BMC.tramos.map(t => [t.txt, fr(t.tasa / 100), 'Vendedora', 'Valor negociado, por los días del plazo', BMC.norma, BMC.vigencia, BMC.fuente]))
+      .concat([['Comprador', 0, 'Compradora', 'Sin tarifa', BMC.norma, BMC.vigencia, 'S1']]);
+    XLSX.utils.book_append_sheet(wb, hoja(bmc, [24, 12, 12, 36, 36, 20, 10], [1]), 'Tarifa BMC');
+
+    const com = [['Sociedad comisionista', 'Documento / versión', 'Mín. vendedor', 'Tope vendedor', 'Tipo vendedor', 'Rango vendedor', 'Mín. comprador', 'Tope comprador', 'Tipo comprador', 'Rango comprador', 'Nota', 'Fuente', 'Enlace']]
+      .concat(SCB.filter(x => x.id !== 'custom').map(x => {
+        const s = FUENTES.find(y => y.id === x.src);
+        const m = y => y ? (y.min == null ? 'No publica' : fr(y.min / 100)) : 'No publicado';
+        return [x.n, x.doc,
+          m(x.v), x.v ? fr(x.v.max / 100) : 'No publicado', x.v ? tipoTxt(x.v.tipo) : '', x.v ? x.v.rango : '',
+          m(x.c), x.c ? fr(x.c.max / 100) : 'No publicado', x.c ? tipoTxt(x.c.tipo) : '', x.c ? x.c.rango : '',
+          x.nota || '', x.src, s ? s.url : ''];
+      }))
+      .concat([[], ['Aclaración: las sociedades comisionistas solo publican rangos y topes. La comisión real se pacta en el mandato y depende de cómo se cierre la negociación (monto, plazo, frecuencia, riesgo del pagador y tipo de endoso). IVA del 19% aparte.']]);
+    XLSX.utils.book_append_sheet(wb, hoja(com, [22, 26, 12, 12, 12, 44, 13, 13, 12, 46, 40, 8, 60], [2, 3, 6, 7]), 'Comisiones SCB');
+
+    const BENEF = [
+      ['Exención del GMF (4 × 1.000)', 'Vendedor y comprador', 'GMF = 0 en desembolso e inversión', 'Art. 879 num. 7 E.T.: compensación y liquidación de operaciones en bolsas de productos agropecuarios', ['S14', 'S16']],
+      ['Sin retención en la fuente sobre el descuento', 'Comprador', 'Retención = 0; recibe el 100% del valor nominal al vencimiento', 'Lit. d) art. 1.2.4.9.1 DUR 1625/2016 (adquisición de títulos valores); Concepto DIAN 783 de 2026', ['S15', 'S17']],
+      ['Descuento deducible en renta', 'Vendedor', 'Informativo (no cambia el neto)', 'Ley 1231 de 2008, art. 8, par. 3', ['S15']],
+      ['IVA sobre comisión y tarifa BMC (no es beneficio)', 'Ambos', 'Se cobra 19% en modo Detallado', 'Régimen general de IVA', ['S8']]
+    ];
+    const bf = [['Beneficio', 'Quién', 'Efecto en el simulador', 'Norma', 'Fuente', 'Documento', 'Qué dice', 'Enlace', 'Fecha de consulta']];
+    BENEF.forEach(r => r[4].forEach((id, i) => {
+      const s = FUENTES.find(y => y.id === id);
+      bf.push([i ? '' : r[0], i ? '' : r[1], i ? '' : r[2], i ? '' : r[3], id, s.doc, s.aporta, s.url, CONSULTA]);
+    }));
+    bf.push([], ['Nota: la retención evitada es un anticipo del impuesto de renta; el rendimiento del comprador sigue siendo ingreso gravado. El GMF se exonera hasta el abono al beneficiario; los movimientos posteriores sí lo causan. Confirmar con un asesor tributario.']);
+    XLSX.utils.book_append_sheet(wb, hoja(bf, [36, 18, 34, 60, 8, 50, 80, 70, 16]), 'Beneficios fiscales');
+
+    const src = [['ID', 'Documento', 'Qué aporta', 'Enlace', 'Fecha de consulta']]
+      .concat(FUENTES.map(s => [s.id, s.doc, s.aporta, s.url, CONSULTA]));
+    XLSX.utils.book_append_sheet(wb, hoja(src, [6, 60, 80, 70, 16]), 'Fuentes');
+
+    const notas = [['Notas'],
+      ['1. Tasa de descuento fija en el simulador: 17,5% E.A.'],
+      ['2. Tarifa BMC vigente desde mayo de 2026 (BNC-2026-8). Antes: 0,20% plena vendedor y 0,03% comprador (ene-2025 a may-2026); 2,2% E.A. vendedor hasta oct-2024.'],
+      ['3. La fecha exacta de inicio de BNC-2026-8 se tomó de la actualización de política de Comfinagro (22-may-2026).'],
+      ['4. Comisión "plena": una sola vez sobre el precio. Comisión "E.A.": tasa anual cobrada por los días del plazo.'],
+      ['5. Por defecto el simulador ubica cada comisión en el punto medio del rango publicado; cuando la firma no publica mínimo se usa 0%.'],
+      [`6. Para firmas o puntas sin rango publicado se usa como referencia 0% – ${RANGO_MERCADO}% (tope más alto publicado en el mercado, Mercado y Bolsa).`],
+      ['7. En Comiagro y Comfinagro el tope del comprador (3%) es un diferencial de tasas que ya incluye costos BMC e IVA; tratarlo como comisión E.A. sobrestima levemente el costo.'],
+      ['8. Bursagán, Coragro Valores y Geocapital publican políticas que no fue posible leer; solicitar las tablas a cada firma.'],
+      ['9. Beneficios fiscales: GMF exento (art. 879 num. 7 E.T.) y sin retención sobre el descuento cuando la factura se adquiere por endoso como título valor (Concepto DIAN 783 de 2026). Siempre se aplican en el simulador.'],
+      ['10. La retención evitada es un anticipo del impuesto de renta; el rendimiento del comprador sigue siendo ingreso gravado. El vendedor puede deducir el descuento (Ley 1231 de 2008, art. 8, par. 3). Confirmar con un asesor tributario.'],
+      ['11. El ahorro por retención se calcula con la tarifa de rendimientos financieros (7%) sobre el descuento. El costo fijo es un supuesto editable del usuario.'],
+      [`12. Datos consultados el ${CONSULTA}.`]];
+    XLSX.utils.book_append_sheet(wb, hoja(notas, [130]), 'Notas');
+
+    XLSX.writeFile(wb, 'atrae_tarifas_y_simulacion.xlsx');
+  });
+
+  /* ---------------- Eventos ---------------- */
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active'); tab = t.dataset.tab; calcular();
+  }));
+  $('modo').addEventListener('click', e => {
+    const bt = e.target.closest('button'); if (!bt) return;
+    document.querySelectorAll('#modo button').forEach(x => x.classList.remove('active'));
+    bt.classList.add('active'); modo = bt.dataset.m; calcular();
+  });
+  document.querySelectorAll('input[type=number], input[type=range], select:not(#firma), input[type=checkbox]')
+    .forEach(el => el.addEventListener('input', calcular));
+
+  $('copiar').addEventListener('click', async () => {
+    const btn = $('copiar');
+    try { await navigator.clipboard.writeText(resumen); btn.textContent = 'Copiado ✓'; }
+    catch (e) { window.prompt('Copia el resumen:', resumen); }
+    setTimeout(() => btn.textContent = 'Copiar resumen', 1500);
+  });
+
+  const DEF = {};
+  document.querySelectorAll('input:not([type=range]), select:not([id$=Tipo])').forEach(el => DEF[el.id] = el.type === 'checkbox' ? el.checked : el.value);
+  $('reset').addEventListener('click', () => {
+    Object.entries(DEF).forEach(([id, v]) => { const el = $(id); if (el.type === 'checkbox') el.checked = v; else el.value = v; });
+    aplicarFirma();
+    calcular();
+  });
+
+  aplicarFirma();
+  calcular();
+</script>
+
+</body>
+</html>

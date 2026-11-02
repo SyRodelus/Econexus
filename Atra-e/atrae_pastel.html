@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atra-e BMC - Volumen por Emisor</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bmc-navy: #0A1F5C;
+      --bmc-blue: #1E6FC8;
+      --bmc-blue-soft: rgba(30, 111, 200, 0.10);
+      --bg: #F2F2F2;
+      --card: #FFFFFF;
+      --line: #E1E4EA;
+      --muted: #6B7280;
+      --up: #1E7A46;
+      --down: #B42318;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--bmc-navy);
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      padding: 20px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--bmc-navy);
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 800px;
+      box-sizing: border-box;
+      box-shadow: 0 4px 16px rgba(10, 31, 92, 0.08);
+    }
+    .header-title {
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+    }
+    .chart-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 6px 0 2px;
+      line-height: 1.3;
+    }
+    .chart-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 8px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 20px;
+    }
+    .timeframes { display: flex; gap: 4px; overflow-x: auto; }
+    .tf-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: var(--muted);
+      padding: 8px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .tf-btn:hover { color: var(--bmc-blue); }
+    .tf-btn.active { color: var(--bmc-navy); border-bottom-color: var(--bmc-blue); }
+    .tf-btn:disabled { opacity: 0.4; cursor: not-allowed; color: var(--muted); }
+    .kpi-nota { font-size: 12px; line-height: 1.5; color: var(--muted); margin: 0 0 18px; }
+    .kpi-nota strong { color: var(--bmc-navy); font-weight: 600; }
+    .body { display: grid; grid-template-columns: 1fr 1.05fr; gap: 16px; align-items: center; }
+    .chart-wrap { position: relative; height: 370px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+    th.n, td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td:first-child { white-space: nowrap; }
+    td { padding: 8px 4px; border-bottom: 1px solid var(--line); }
+    tr.off td { opacity: 0.35; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover td { background: var(--bmc-blue-soft); }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+    .empty { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; padding: 0 30px; }
+    .footnote {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+    }
+    .dl-btn {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--bmc-blue);
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .dl-btn:hover { border-color: var(--bmc-blue); background: var(--bmc-blue-soft); }
+    .dl-btn svg { width: 14px; height: 14px; }
+    @media (max-width: 720px) {
+      .body { grid-template-columns: 1fr; }
+      .chart-wrap { height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header-title">Atra-e • Bolsa Mercantil de Colombia</div>
+  <h1 class="chart-title">Negociación en Atra-e por tipo de emisor</h1>
+  <div class="chart-subtitle">Mercado bursátil de facturas electrónicas · pesos colombianos (COP)</div>
+
+  <div class="controls">
+    <div class="timeframes" id="anios">
+      <button class="tf-btn" data-a="2024" title="Año 2024 completo">2024</button>
+      <button class="tf-btn" data-a="2025" title="Año 2025 completo">2025</button>
+      <button class="tf-btn" data-a="2026" title="Enero a junio de 2026">2026</button>
+      <button class="tf-btn active" data-a="todos" title="Histórico: 2023 a junio de 2026">Máx.</button>
+    </div>
+    <div class="timeframes" id="metrica">
+      <button class="tf-btn active" data-m="valor">Valor ($)</button>
+      <button class="tf-btn" data-m="ops">Operaciones</button>
+      <button class="tf-btn" data-m="fac">Facturas</button>
+    </div>
+    <select id="anio" hidden></select>
+  </div>
+
+  <p class="kpi-nota"><strong>Operación vs. factura:</strong> una operación es cada negociación cerrada en Atra-e entre un emisor y un inversionista; en ella el emisor puede vender una o varias facturas. Por eso hay más facturas que operaciones (en 2025: 234 operaciones con 277 facturas). La cifra que la BMC publica como "operaciones realizadas" corresponde al número de facturas.</p>
+
+  <div class="body">
+    <div class="chart-wrap">
+      <canvas id="pastel"></canvas>
+      <div class="empty" id="vacio"></div>
+    </div>
+    <table>
+      <thead><tr><th>Emisor</th><th class="n">Valor</th><th class="n">Ops.</th><th class="n">Fact.</th><th class="n">%</th></tr></thead>
+      <tbody id="tabla"></tbody>
+    </table>
+  </div>
+
+  <div class="footnote">
+    <span>Fuente: Bolsa Mercantil de Colombia</span>
+    <span>·</span>
+    <span id="ultimo-dato">Último dato: 1S 2026</span>
+    <button class="dl-btn" id="descargar" type="button" title="Descarga los datos de la gráfica con sus fuentes y notas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path>
+      </svg>
+      Descargar datos (.xlsx)
+    </button>
+  </div>
+</div>
+
+<script>
+  const FUENTES = {
+    F1: { doc: 'BMC – Informe de Gestión y Sostenibilidad 2025', url: 'https://www.bolsamercantil.com.co/sites/default/files/2026-02/Anexo%200.%20Informe%20de%20Gestio%CC%81n%20y%20Sostenibilidad%202025_2.pdf' },
+    F2: { doc: 'BMC – Base de operaciones Atra-e 2025 (FACTURA EXTERNA, 234 operaciones)', url: '' },
+    F9: { doc: 'BMC – Presentación de resultados 1S 2026 (diapositiva 14)', url: 'https://www.bolsamercantil.com.co/sites/default/files/2026-08/Presentaci%C3%B3n%20Earnings%20Call%202T%20Final%202026%20F%20.pdf' }
+  };
+
+  const SEGMENTOS = ['Micro', 'Pequeña', 'Mediana', 'Grande', 'Persona juridica', 'Persona natural', 'ND'];
+  const NOMBRES = { 'Persona juridica': 'Persona jurídica', 'ND': 'Sin clasificar' };
+  const COLORES = {
+    'Micro': '#0A1F5C', 'Pequeña': '#1E6FC8', 'Mediana': '#7A9FD1', 'Grande': '#00AEEF',
+    'Persona juridica': '#9DC45F', 'Persona natural': '#3FA65A', 'ND': '#B8BEC9'
+  };
+
+  // 2025: agregado por tipo de emisor de la base de operaciones Atra-e. [valor COP, operaciones, facturas]
+  const EMISORES_2025 = {
+    'Micro': [47332125976, 68, 86],
+    'Pequeña': [1446344220, 11, 11],
+    'Mediana': [2927956579, 11, 11],
+    'Grande': [38360231329, 75, 80],
+    'Persona juridica': [564480775, 9, 9],
+    'Persona natural': [7740888692, 60, 80]
+  };
+  // 2026: % por tipo de emisor publicado por la BMC para ene–jun 2026 (base: valor negociado)
+  const PCT_1S26 = { 'Micro': 34, 'Pequeña': 12, 'Mediana': 9, 'Grande': 18, 'Persona juridica': 12, 'Persona natural': 15 };
+
+  // Totales anuales (valor en COP). ops/fac null = no disponible. Estimado = true marca cifras estimadas.
+  const ANIOS = {
+    2023: { periodo: 'Año 2023 (antes del lanzamiento comercial)', valor: 48e6, ops: null, fac: 3, facEst: false, fuentes: ['F1'] },
+    2024: { periodo: 'Año 2024', valor: 12849e6, ops: null, fac: 107, facEst: false, fuentes: ['F1'] },
+    2025: { periodo: 'Año 2025', valor: 98372e6, ops: 234, fac: 277, facEst: false, fuentes: ['F2', 'F1'] },
+    2026: { periodo: 'Ene–jun 2026', valor: 135847e6, ops: null, fac: 935, facEst: true, fuentes: ['F9'] }
+  };
+
+  const NOTAS = [
+    '2025: datos reales de la base de operaciones Atra-e (234 operaciones, 277 facturas, $98.372 M). Cuadran exactamente con el total anual y los trimestres publicados por la BMC.',
+    'Lo que la BMC llama "operaciones realizadas" en su informe anual (2025: 277) corresponde al número de facturas negociadas, no al de operaciones. Por eso 2023 (3) y 2024 (107) se muestran como facturas.',
+    '2026 (ene–jun): valor por tipo de emisor = $135.847 M × % publicado por la BMC (presentación 1S 2026). Se asume que el % es sobre valor negociado, porque así cuadra el corte ene–mar 2025 con la base de operaciones (Grande 67%, Persona natural 22%, Micro 9%, Pequeña 2%). Facturas ≈ 935 estimadas (volumen ÷ ticket promedio por plazo); la BMC no publica operaciones ni facturas por tipo de emisor.',
+    '2023 y 2024: la BMC no publicó la clasificación de emisores; en el histórico su valor y facturas aparecen como "Sin clasificar".',
+    'Histórico = 2023 + 2024 + 2025 + ene–jun 2026. Operaciones solo existen para 2025, por eso no se muestran en el histórico. Julio–octubre 2026 no se incluye: la BMC aún no ha publicado esos resultados.',
+    'Valores en pesos colombianos (COP).'
+  ];
+
+  const nombre = s => NOMBRES[s] || s;
+  const nf = new Intl.NumberFormat('es-CO');
+  const nf1 = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  function dinero(v) {
+    if (v >= 1e9) return '$' + nf1.format(v / 1e9) + ' mil M';
+    if (v >= 1e6) return '$' + nf1.format(v / 1e6) + ' M';
+    return '$' + nf.format(Math.round(v));
+  }
+  function corto(v, m) {
+    if (m !== 'valor') return nf.format(v);
+    if (v >= 1e9) return nf1.format(v / 1e9) + ' mil M';
+    return nf1.format(v / 1e6) + 'M';
+  }
+
+  // Desglose por tipo de emisor de cada vista: { seg: {valor, ops, fac} } (null = no disponible)
+  function vacioAgg() { const a = {}; SEGMENTOS.forEach(s => a[s] = { valor: 0, ops: null, fac: null }); return a; }
+  function desglose(vista) {
+    const agg = vacioAgg();
+    const sumar = (s, k, v) => { agg[s][k] = (agg[s][k] || 0) + v; };
+    if (vista === '2025' || vista === 'todos') {
+      Object.entries(EMISORES_2025).forEach(([s, [v, o, f]]) => { sumar(s, 'valor', v); sumar(s, 'ops', o); sumar(s, 'fac', f); });
+    }
+    if (vista === '2026' || vista === 'todos') {
+      Object.entries(PCT_1S26).forEach(([s, p]) => sumar(s, 'valor', ANIOS[2026].valor * p / 100));
+      if (vista === 'todos') sumar('ND', 'fac', ANIOS[2026].fac);
+    }
+    if (vista === 'todos') {
+      [2023, 2024].forEach(a => { sumar('ND', 'valor', ANIOS[a].valor); sumar('ND', 'fac', ANIOS[a].fac); });
+    }
+    if (vista === 'todos') SEGMENTOS.forEach(s => { agg[s].ops = null; });
+    return agg;
+  }
+  // ¿La métrica tiene desglose por emisor en esta vista?
+  const disponible = { '2024': { valor: false, ops: false, fac: false }, '2025': { valor: true, ops: true, fac: true },
+                       '2026': { valor: true, ops: false, fac: false }, 'todos': { valor: true, ops: false, fac: true } };
+
+  const selAnio = document.getElementById('anio');
+  selAnio.innerHTML = '<option value="2024">2024</option><option value="2025">2025</option>' +
+    '<option value="2026">2026 (a junio)</option><option value="todos">Histórico (2023 – jun 2026)</option>';
+  selAnio.value = 'todos';
+
+  let metrica = 'valor';
+  const ocultos = new Set();
+
+  const etiquetasExternas = {
+    id: 'etiquetasExternas',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      const ds = chart.data.datasets[0];
+      const total = ds.data.reduce((a, b, i) => a + (chart.getDataVisibility(i) ? b : 0), 0);
+      if (!total) return;
+      ctx.save();
+      ctx.strokeStyle = '#9CA3AF';
+      ctx.lineWidth = 1;
+      const items = [];
+      meta.data.forEach((arc, i) => {
+        const v = ds.data[i];
+        if (!v || !chart.getDataVisibility(i)) return;
+        const ang = (arc.startAngle + arc.endAngle) / 2;
+        const r = arc.outerRadius;
+        items.push({
+          v, pct: v / total * 100, derecha: Math.cos(ang) >= 0,
+          x0: arc.x + Math.cos(ang) * r, y0: arc.y + Math.sin(ang) * r,
+          x1: arc.x + Math.cos(ang) * (r + 12), y: arc.y + Math.sin(ang) * (r + 12)
+        });
+      });
+      const ALTO = 30;
+      [true, false].forEach(lado => {
+        const grupo = items.filter(it => it.derecha === lado).sort((a, b) => a.y - b.y);
+        for (let k = 1; k < grupo.length; k++) {
+          if (grupo[k].y - grupo[k - 1].y < ALTO) grupo[k].y = grupo[k - 1].y + ALTO;
+        }
+      });
+      items.forEach(it => {
+        const x2 = it.x1 + (it.derecha ? 8 : -8);
+        ctx.beginPath(); ctx.moveTo(it.x0, it.y0); ctx.lineTo(it.x1, it.y); ctx.lineTo(x2, it.y); ctx.stroke();
+        const tx = x2 + (it.derecha ? 4 : -4);
+        ctx.textAlign = it.derecha ? 'left' : 'right';
+        ctx.textBaseline = 'middle';
+        ctx.font = '600 12px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#0A1F5C';
+        ctx.fillText(corto(it.v, metrica), tx, it.y - 7);
+        ctx.font = '12px "Segoe UI", sans-serif';
+        ctx.fillStyle = '#6B7280';
+        ctx.fillText(`(${nf1.format(it.pct)}%)`, tx, it.y + 8);
+      });
+      ctx.restore();
+    }
+  };
+
+  const chart = new Chart(document.getElementById('pastel'), {
+    type: 'pie',
+    data: {
+      labels: SEGMENTOS.map(nombre),
+      datasets: [{ data: SEGMENTOS.map(() => 0), backgroundColor: SEGMENTOS.map(s => COLORES[s]), borderColor: '#FFFFFF', borderWidth: 2, hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { left: 88, right: 88, top: 36, bottom: 36 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0A1F5C', titleColor: '#FFFFFF', bodyColor: '#DCE6F5', padding: 12,
+          callbacks: {
+            label: c => {
+              const tot = c.dataset.data.reduce((a, b, i) => a + (c.chart.getDataVisibility(i) ? b : 0), 0);
+              const v = c.parsed;
+              const txt = metrica === 'valor' ? dinero(v) : nf.format(v) + (metrica === 'ops' ? ' operaciones' : ' facturas');
+              return ` ${txt} · ${nf1.format(v / tot * 100)}%`;
+            }
+          }
+        }
+      }
+    },
+    plugins: [etiquetasExternas]
+  });
+
+  function totales(vista) {
+    const lista = vista === 'todos' ? [2023, 2024, 2025, 2026] : [+vista];
+    const valor = lista.reduce((s, a) => s + ANIOS[a].valor, 0);
+    const fac = lista.reduce((s, a) => s + ANIOS[a].fac, 0);
+    const facEst = lista.some(a => ANIOS[a].facEst);
+    const ops = vista === 'todos' ? null : ANIOS[+vista].ops;
+    return { valor, fac, facEst, ops, lista };
+  }
+
+  function actualizar() {
+    const vista = selAnio.value;
+    const disp = disponible[vista];
+
+    document.querySelectorAll('#metrica button').forEach(b => { b.disabled = !disp[b.dataset.m]; });
+    if (!disp[metrica]) {
+      const alt = ['valor', 'fac', 'ops'].find(m => disp[m]);
+      if (alt) metrica = alt;
+    }
+    document.querySelectorAll('#metrica button').forEach(b => b.classList.toggle('active', b.dataset.m === metrica && disp[metrica]));
+
+    // Desglose por emisor
+    const agg = desglose(vista);
+    const hayDesglose = disp[metrica];
+    const val = s => hayDesglose ? (agg[s][metrica] || 0) : 0;
+    chart.data.datasets[0].data = SEGMENTOS.map(val);
+    SEGMENTOS.forEach((s, i) => { if (chart.getDataVisibility(i) === ocultos.has(s)) chart.toggleDataVisibility(i); });
+    chart.update();
+    const totVis = SEGMENTOS.reduce((a, s) => a + (ocultos.has(s) ? 0 : val(s)), 0);
+
+    const vacio = document.getElementById('vacio');
+    vacio.textContent = `La BMC no publicó la clasificación de emisores de 2024. Total del año: ${dinero(ANIOS[2024].valor)} en ${nf.format(ANIOS[2024].fac)} facturas.`;
+    vacio.style.display = totVis ? 'none' : 'flex';
+
+    const visibles = SEGMENTOS.filter(s => s !== 'ND' || (agg.ND.valor || agg.ND.fac));
+    const orden = [...visibles].sort((x, y) => val(y) - val(x));
+    const fmt = (v, f) => v == null ? 'n.d.' : f(v);
+    document.getElementById('tabla').innerHTML = orden.map(s => {
+      const pct = totVis && !ocultos.has(s) ? val(s) / totVis * 100 : 0;
+      return `<tr data-s="${s}" class="${ocultos.has(s) ? 'off' : ''}">
+        <td><span class="dot" style="background:${COLORES[s]}"></span>${nombre(s)}</td>
+        <td class="n">${vista === '2024' ? 'n.d.' : dinero(agg[s].valor)}</td>
+        <td class="n">${fmt(agg[s].ops, nf.format)}</td>
+        <td class="n">${fmt(agg[s].fac, nf.format)}</td>
+        <td class="n">${hayDesglose ? nf1.format(pct) + '%' : 'n.d.'}</td></tr>`;
+    }).join('');
+
+  }
+
+  document.getElementById('tabla').addEventListener('click', e => {
+    const tr = e.target.closest('tr'); if (!tr) return;
+    const s = tr.dataset.s;
+    ocultos.has(s) ? ocultos.delete(s) : ocultos.add(s);
+    actualizar();
+  });
+  selAnio.addEventListener('change', actualizar);
+  document.getElementById('anios').addEventListener('click', e => {
+    const b = e.target.closest('.tf-btn'); if (!b) return;
+    document.querySelectorAll('#anios .tf-btn').forEach(x => x.classList.toggle('active', x === b));
+    selAnio.value = b.dataset.a;
+    actualizar();
+  });
+  document.getElementById('metrica').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.disabled) return;
+    metrica = b.dataset.m;
+    actualizar();
+  });
+
+  // Descarga: datos de emisores de la gráfica, con fuentes y notas
+  document.getElementById('descargar').addEventListener('click', () => {
+    if (typeof XLSX === 'undefined') { alert('No se pudo cargar la librería de Excel. Revisa tu conexión e inténtalo de nuevo.'); return; }
+    const filasVista = (vista, etiqueta) => {
+      const agg = desglose(vista);
+      return SEGMENTOS.filter(s => agg[s].valor || agg[s].fac).map(s =>
+        [etiqueta, nombre(s), Math.round(agg[s].valor), agg[s].ops == null ? 'n.d.' : agg[s].ops, agg[s].fac == null ? 'n.d.' : agg[s].fac]);
+    };
+    const hEmi = [['Periodo', 'Tipo de emisor', 'Valor negociado (COP)', 'Operaciones', 'Facturas'],
+      ...filasVista('2025', '2025 (base de operaciones)'),
+      ...filasVista('2026', 'Ene–jun 2026 (% BMC × valor)'),
+      ...filasVista('todos', 'Histórico 2023 – jun 2026')];
+    const hAnual = [['Año', 'Periodo', 'Valor negociado (COP)', 'Operaciones', 'Facturas', 'Facturas estimadas', 'Fuentes']];
+    [2023, 2024, 2025, 2026].forEach(a => {
+      const x = ANIOS[a];
+      hAnual.push([a, x.periodo, x.valor, x.ops == null ? 'n.d.' : x.ops, x.fac, x.facEst ? 'Sí' : 'No', x.fuentes.join(', ')]);
+    });
+    const t = totales('todos');
+    hAnual.push(['Total', '2023 – jun 2026', t.valor, 'n.d.', t.fac, 'Incluye 2026 estimado', '']);
+    const hPct = [['Tipo de emisor', '% del valor ene–jun 2026 (BMC)'], ...Object.entries(PCT_1S26).map(([s, p]) => [nombre(s), p / 100])];
+    const hF = [['ID', 'Documento', 'Enlace'], ...Object.entries(FUENTES).map(([k, f]) => [k, f.doc, f.url || 'Archivo interno entregado por el usuario'])];
+    const hN = [['Notas'], ...NOTAS.map(n => [n]), [''], ['Fuente: Bolsa Mercantil de Colombia. Descargado: ' + new Date().toISOString().slice(0, 10)]];
+
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(hEmi);
+    for (let r = 1; r < hEmi.length; r++) for (const c of [2, 3, 4]) { const x = ws1[XLSX.utils.encode_cell({ r, c })]; if (x && typeof x.v === 'number') x.z = '#,##0'; }
+    ws1['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 22 }, { wch: 12 }, { wch: 10 }];
+    const ws2 = XLSX.utils.aoa_to_sheet(hAnual);
+    for (let r = 1; r < hAnual.length; r++) for (const c of [2, 3, 4]) { const x = ws2[XLSX.utils.encode_cell({ r, c })]; if (x && typeof x.v === 'number') x.z = '#,##0'; }
+    ws2['!cols'] = [{ wch: 7 }, { wch: 40 }, { wch: 22 }, { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 10 }];
+    const ws3 = XLSX.utils.aoa_to_sheet(hPct);
+    for (let r = 1; r < hPct.length; r++) { const x = ws3[XLSX.utils.encode_cell({ r, c: 1 })]; if (x) x.z = '0%'; }
+    ws3['!cols'] = [{ wch: 18 }, { wch: 30 }];
+    const ws4 = XLSX.utils.aoa_to_sheet(hF); ws4['!cols'] = [{ wch: 5 }, { wch: 70 }, { wch: 110 }];
+    Object.values(FUENTES).forEach((f, i) => { const c = ws4['C' + (i + 2)]; if (c && f.url) c.l = { Target: f.url }; });
+    const ws5 = XLSX.utils.aoa_to_sheet(hN); ws5['!cols'] = [{ wch: 150 }];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Emisores');
+    XLSX.utils.book_append_sheet(wb, ws2, 'Anual');
+    XLSX.utils.book_append_sheet(wb, ws3, '% BMC 2026');
+    XLSX.utils.book_append_sheet(wb, ws4, 'Fuentes');
+    XLSX.utils.book_append_sheet(wb, ws5, 'Notas');
+    XLSX.writeFile(wb, 'atrae_emisores.xlsx');
+  });
+
+  actualizar();
+</script>
+
+</body>
+</html>
