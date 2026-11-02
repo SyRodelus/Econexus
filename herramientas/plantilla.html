@@ -165,38 +165,38 @@
     </div>
 
     <nav class="tabs" role="tablist" aria-label="Tableros">
-      <button class="tab" role="tab" id="tab-mercop" data-panel="mercop" aria-controls="mercop" aria-selected="true">MERCOP</button>
-      <button class="tab" role="tab" id="tab-mcp" data-panel="mcp" aria-controls="mcp" aria-selected="false">MCP</button>
-      <button class="tab" role="tab" id="tab-atrae" data-panel="atrae" aria-controls="atrae" aria-selected="false">Atra-e</button>
-      <button class="tab" role="tab" id="tab-ipap" data-panel="ipap" aria-controls="ipap" aria-selected="false">IPAP</button>
+      <button class="tab" role="tab" id="tab-mercop" data-panel="mercop" aria-controls="panel-mercop" aria-selected="true">MERCOP</button>
+      <button class="tab" role="tab" id="tab-mcp" data-panel="mcp" aria-controls="panel-mcp" aria-selected="false">MCP</button>
+      <button class="tab" role="tab" id="tab-atrae" data-panel="atrae" aria-controls="panel-atrae" aria-selected="false">Atra-e</button>
+      <button class="tab" role="tab" id="tab-ipap" data-panel="ipap" aria-controls="panel-ipap" aria-selected="false">IPAP</button>
     </nav>
   </div>
 </header>
 
 <main>
   <!-- MERCOP: 1 mercop_mapa · 2 mercop_grafico · 3 mercop_pastel -->
-  <section class="panel layout-side" id="mercop" role="tabpanel" aria-labelledby="tab-mercop">
+  <section class="panel layout-side" id="panel-mercop" role="tabpanel" aria-labelledby="tab-mercop">
     <div class="frame slot-a" data-src="mercop_mapa"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-b" data-src="mercop_grafico"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-c" data-src="mercop_pastel"><div class="loading">Cargando tablero…</div></div>
   </section>
 
   <!-- MCP: 1 mcp_eficiencia · 2 mcp_riesgos · 3 mcp_valor_negociado -->
-  <section class="panel layout-stack" id="mcp" role="tabpanel" aria-labelledby="tab-mcp" hidden>
+  <section class="panel layout-stack" id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" hidden>
     <div class="frame slot-a" data-src="mcp_eficiencia"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-b" data-src="mcp_riesgos"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-c" data-src="mcp_valor_negociado"><div class="loading">Cargando tablero…</div></div>
   </section>
 
   <!-- Atra-e: 1 atrae_grafico · 2 atrae_pastel · 3 atrae_calculadora -->
-  <section class="panel layout-top" id="atrae" role="tabpanel" aria-labelledby="tab-atrae" hidden>
+  <section class="panel layout-top" id="panel-atrae" role="tabpanel" aria-labelledby="tab-atrae" hidden>
     <div class="frame slot-a" data-src="atrae_grafico"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-b" data-src="atrae_pastel"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-c" data-src="atrae_calculadora"><div class="loading">Cargando tablero…</div></div>
   </section>
 
   <!-- IPAP: 1 area_agricola_mapa · 2 poblacion_colombia_grafico · 3 ipap_vs_ipc_grafico -->
-  <section class="panel layout-side" id="ipap" role="tabpanel" aria-labelledby="tab-ipap" hidden>
+  <section class="panel layout-side" id="panel-ipap" role="tabpanel" aria-labelledby="tab-ipap" hidden>
     <div class="frame slot-a" data-src="area_agricola_mapa"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-b" data-src="poblacion_colombia_grafico"><div class="loading">Cargando tablero…</div></div>
     <div class="frame slot-c" data-src="ipap_vs_ipc_grafico"><div class="loading">Cargando tablero…</div></div>
@@ -228,8 +228,15 @@ __SOURCES__
 
   // Antes de que corra el tablero: recuerda los colores de cada degradado para poder redibujarlo
   // a la altura real del gráfico cuando este crece (el original está fijo a 300 px).
+  // Además, scrollIntoView dentro de un tablero solo desplaza su propio contenedor con barra,
+  // sin mover la página completa.
   const GUARDA_DEGRADADOS = '<script>(function(){var o=CanvasGradient.prototype.addColorStop;' +
-    'CanvasGradient.prototype.addColorStop=function(p,c){(this.__ecx||(this.__ecx=[])).push([p,c]);return o.call(this,p,c);};})();<\/script>';
+    'CanvasGradient.prototype.addColorStop=function(p,c){(this.__ecx||(this.__ecx=[])).push([p,c]);return o.call(this,p,c);};' +
+    'Element.prototype.scrollIntoView=function(){var p=this.parentElement;' +
+    'while(p&&!((p.scrollWidth>p.clientWidth&&/(auto|scroll)/.test(getComputedStyle(p).overflowX))||(p.scrollHeight>p.clientHeight&&/(auto|scroll)/.test(getComputedStyle(p).overflowY))))p=p.parentElement;' +
+    'if(!p||p===document.documentElement||p===document.body)return;var r=this.getBoundingClientRect(),q=p.getBoundingClientRect();' +
+    'if(r.left<q.left)p.scrollLeft-=q.left-r.left;else if(r.right>q.right)p.scrollLeft+=r.right-q.right;' +
+    'if(r.top<q.top)p.scrollTop-=q.top-r.top;else if(r.bottom>q.bottom)p.scrollTop+=r.bottom-q.bottom;};})();<\/script>';
 
   function ajustarDegradados(win) {
     const C = win.Chart;
@@ -373,8 +380,8 @@ __SOURCES__
       t.tabIndex = on ? 0 : -1;
       if (on && enfocar) t.focus();
     });
-    PANELES.forEach(p => { document.getElementById(p).hidden = p !== id; });
-    const panel = document.getElementById(id);
+    PANELES.forEach(p => { document.getElementById('panel-' + p).hidden = p !== id; });
+    const panel = document.getElementById('panel-' + id);
     cargar(panel);
     programar(panel, true);
     if (location.hash.slice(1) !== id) history.replaceState(null, '', '#' + id);
